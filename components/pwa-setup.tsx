@@ -36,7 +36,7 @@ export function PWASetup() {
           console.log("✅ Service Worker registrado:", registration);
           setSwRegistration(registration);
 
-          // Detectar actualizaciones del Service Worker
+          // Detectar actualizaciones del Service Worker (sin molestar al usuario)
           registration.addEventListener('updatefound', () => {
             const newWorker = registration.installing;
             
@@ -44,13 +44,9 @@ export function PWASetup() {
               newWorker.addEventListener('statechange', () => {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                   // Hay una nueva versión disponible
-                  console.log('🔄 Nueva versión disponible');
-                  
-                  // Notificar al usuario (opcional)
-                  if (confirm('Hay una nueva versión de CitaVerde disponible. ¿Recargar para actualizar?')) {
-                    newWorker.postMessage({ type: 'SKIP_WAITING' });
-                    window.location.reload();
-                  }
+                  console.log('🔄 Nueva versión disponible - actualizando automáticamente');
+                  // Actualizar automáticamente sin molestar al usuario
+                  newWorker.postMessage({ type: 'SKIP_WAITING' });
                 }
               });
             }

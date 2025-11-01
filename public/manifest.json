@@ -3,6 +3,7 @@
   "short_name": "CitaVerde",
   "description": "Sistema completo de gestión de citas médicas, turnos digitales y colas inteligentes",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#16A34A",
@@ -37,7 +38,32 @@
       "description": "Solicitar un turno digital",
       "url": "/usuario/turnos",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Mis Citas",
+      "short_name": "Mis Citas",
+      "description": "Ver mis citas programadas",
+      "url": "/usuario/mis-citas",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Scanner QR",
+      "short_name": "QR",
+      "description": "Escanear código QR de turno o cita",
+      "url": "/usuario/qr",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
-  ]
+  ],
+  "share_target": {
+    "action": "/usuario/reservar",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "offline_enabled": true
 }
 

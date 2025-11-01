@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     email TEXT UNIQUE NOT NULL,
     name TEXT NOT NULL,
     password TEXT NOT NULL,
+    phone TEXT,
     role TEXT NOT NULL CHECK (role IN ('admin', 'recepcionista', 'usuario')),
     sede_id TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -91,9 +92,11 @@ CREATE TABLE IF NOT EXISTS turnos (
     cola TEXT NOT NULL,
     cola_id TEXT,
     estado TEXT NOT NULL CHECK (estado IN ('en_espera', 'en_atencion', 'atendido', 'cancelado', 'no_presentado')),
+    tipo TEXT CHECK (tipo IN ('digital', 'papel')),
     tiempo_estimado INTEGER,
     llamada_at TIMESTAMP WITH TIME ZONE,
     creado_at TEXT,
+    qr_code TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -116,19 +119,7 @@ CREATE TABLE IF NOT EXISTS configuracion (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Insertar configuraciones por defecto
-INSERT INTO configuracion (clave, valor, tipo, descripcion) VALUES
-('checkin_ventana_minima', '15', 'number', 'Minutos antes de la cita para permitir check-in'),
-('checkin_ventana_maxima', '60', 'number', 'Minutos antes de la cita máxima para check-in'),
-('timezone', 'America/Lima', 'string', 'Zona horaria del sistema'),
-('idioma', 'es', 'string', 'Idioma del sistema'),
-('reporte_diario_activo', 'true', 'boolean', 'Si el reporte diario está activo'),
-('reporte_diario_email', 'admin@reservaflow.com', 'string', 'Email para reportes diarios'),
-('reporte_semanal_activo', 'false', 'boolean', 'Si el reporte semanal está activo'),
-('reporte_semanal_email', '', 'string', 'Email para reportes semanales'),
-('reporte_mensual_activo', 'false', 'boolean', 'Si el reporte mensual está activo'),
-('reporte_mensual_email', '', 'string', 'Email para reportes mensuales')
-ON CONFLICT (clave) DO NOTHING;
+-- Las configuraciones se insertan desde registros.sql
 
 -- Crear índice para búsqueda rápida
 CREATE INDEX IF NOT EXISTS idx_configuracion_clave ON configuracion(clave);
@@ -298,12 +289,15 @@ CREATE INDEX IF NOT EXISTS idx_citas_estado ON citas(estado);
 CREATE INDEX IF NOT EXISTS idx_citas_fecha ON citas(fecha);
 CREATE INDEX IF NOT EXISTS idx_citas_checkin ON citas(hora_checkin);
 CREATE INDEX IF NOT EXISTS idx_citas_no_show ON citas(no_show);
+CREATE INDEX IF NOT EXISTS idx_citas_qr_code ON citas(qr_code);
+CREATE INDEX IF NOT EXISTS idx_citas_confirmation_token ON citas(confirmation_token);
 
 -- Índices de turnos
 CREATE INDEX IF NOT EXISTS idx_turnos_user_id ON turnos(user_id);
 CREATE INDEX IF NOT EXISTS idx_turnos_sede_id ON turnos(sede_id);
 CREATE INDEX IF NOT EXISTS idx_turnos_servicio_id ON turnos(servicio_id);
 CREATE INDEX IF NOT EXISTS idx_turnos_estado ON turnos(estado);
+CREATE INDEX IF NOT EXISTS idx_turnos_qr_code ON turnos(qr_code);
 
 -- Índices de servicios
 CREATE INDEX IF NOT EXISTS idx_servicios_sede_id ON servicios(sede_id);

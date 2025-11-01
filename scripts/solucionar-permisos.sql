@@ -23,6 +23,7 @@ ALTER TABLE roles_permisos DISABLE ROW LEVEL SECURITY;
 ALTER TABLE disponibilidad DISABLE ROW LEVEL SECURITY;
 ALTER TABLE horarios_especiales DISABLE ROW LEVEL SECURITY;
 ALTER TABLE plantillas_mensajes DISABLE ROW LEVEL SECURITY;
+ALTER TABLE configuracion DISABLE ROW LEVEL SECURITY;
 
 -- =============================================
 -- PASO 2: OTORGAR PERMISOS DE LECTURA A ANON
@@ -42,6 +43,7 @@ GRANT SELECT ON roles_permisos TO anon;
 GRANT SELECT ON disponibilidad TO anon;
 GRANT SELECT ON horarios_especiales TO anon;
 GRANT SELECT ON plantillas_mensajes TO anon;
+GRANT SELECT ON configuracion TO anon;
 
 -- Otorgar permisos de inserción, actualización y eliminación
 GRANT INSERT, UPDATE, DELETE ON usuarios TO anon;
@@ -59,6 +61,7 @@ GRANT INSERT, UPDATE, DELETE ON roles_permisos TO anon;
 GRANT INSERT, UPDATE, DELETE ON disponibilidad TO anon;
 GRANT INSERT, UPDATE, DELETE ON horarios_especiales TO anon;
 GRANT INSERT, UPDATE, DELETE ON plantillas_mensajes TO anon;
+GRANT INSERT, UPDATE, DELETE ON configuracion TO anon;
 
 -- =============================================
 -- PASO 3: OTORGAR PERMISOS A USUARIOS AUTENTICADOS
@@ -78,6 +81,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON roles_permisos TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON disponibilidad TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON horarios_especiales TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON plantillas_mensajes TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON configuracion TO authenticated;
 
 -- =============================================
 -- PASO 4: VERIFICAR ESTADO
@@ -95,7 +99,7 @@ WHERE tablename IN (
     'usuarios', 'sedes', 'servicios', 'profesionales', 'citas', 
     'turnos', 'colas', 'recursos', 'logs_qr', 'roles', 
     'permisos', 'roles_permisos', 'disponibilidad', 'horarios_especiales', 
-    'plantillas_mensajes'
+    'plantillas_mensajes', 'configuracion'
 )
 AND schemaname = 'public'
 ORDER BY tablename;

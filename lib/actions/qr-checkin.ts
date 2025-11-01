@@ -186,6 +186,8 @@ async function validarVentanaCheckIn(data: any) {
  * Registra el check-in de la cita
  */
 async function registrarCheckInCita(citaId: string, timestamp: string) {
+  // Al hacer check-in con QR, la cita queda en 'confirmada' esperando ser atendida
+  // El recepcionista luego la cambia a 'en_curso' cuando inicia la atención
   await supabase
     .from("citas")
     .update({

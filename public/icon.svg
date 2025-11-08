@@ -1,0 +1,30 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Fondo con gradiente de la marca (sin texto) -->
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22C55E"/>
+      <stop offset="100%" stop-color="#16A34A"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)" rx="80"/>
+
+  <!-- Icono: calendario con cruz médica, centrado y limpio -->
+  <g fill="none" stroke="white" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+    <!-- argollas -->
+    <line x1="192" y1="104" x2="192" y2="152"/>
+    <line x1="320" y1="104" x2="320" y2="152"/>
+    <!-- contenedor calendario -->
+    <rect x="120" y="152" width="272" height="240" rx="24"/>
+    <line x1="120" y1="208" x2="392" y2="208"/>
+  </g>
+
+  <!-- Cruz médica dentro del calendario -->
+  <g>
+    <circle cx="256" cy="300" r="56" fill="white"/>
+    <g fill="#16A34A">
+      <rect x="244" y="256" width="24" height="88" rx="12"/>
+      <rect x="212" y="288" width="88" height="24" rx="12"/>
+    </g>
+  </g>
+</svg>
+

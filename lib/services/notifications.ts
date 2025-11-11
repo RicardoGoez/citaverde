@@ -565,4 +565,128 @@ Equipo ReservaFlow
       type: 'email',
     });
   }
+
+  /**
+   * Notifica al profesional cuando se cancela una cita
+   */
+  static async notifyProfesionalCitaCancelada(
+    profesionalId: string,
+    cita: { servicio: string; fecha: string; hora: string; paciente_name?: string; user_name?: string },
+    profesionalEmail?: string
+  ): Promise<boolean> {
+    const email = profesionalEmail;
+    
+    if (!email) {
+      console.warn('No se encontró email del profesional para notificar cancelación');
+      return false;
+    }
+
+    const pacienteNombre = cita.paciente_name || cita.user_name || 'Un paciente';
+
+    const message = `
+📋 Notificación de Cancelación de Cita
+
+Estimado/a Profesional,
+
+Se ha cancelado una cita:
+
+📅 Servicio: ${cita.servicio}
+👤 Paciente: ${pacienteNombre}
+📆 Fecha: ${cita.fecha}
+🕐 Hora: ${cita.hora}
+
+El horario está ahora disponible para nuevas citas.
+
+Equipo CitaVerde
+    `.trim();
+
+    const emailSent = await this.send({
+      to: email,
+      subject: `Cita Cancelada - ${cita.servicio} - ${cita.fecha}`,
+      message,
+      type: 'email',
+    });
+
+    // Enviar notificación push
+    try {
+      await PushNotificationService.notifyCitaEvent('cancelada', {
+        servicio: cita.servicio,
+        fecha: cita.fecha,
+        hora: cita.hora,
+        profesional: '', // No aplica para el profesional
+      });
+    } catch (pushError) {
+      console.warn('Error enviando push notification al profesional:', pushError);
+    }
+
+    return emailSent;
+  }
+
+  /**
+   * Notifica a usuarios en lista de espera cuando se libera un slot
+   */
+  static async notifyListaEsperaSlotDisponible(
+    usuariosEnEspera: Array<{ userId: string; email?: string; name?: string }>,
+    cita: { servicio: string; fecha: string; hora: string; profesional?: string; sede?: string }
+  ): Promise<number> {
+    let notificados = 0;
+
+    for (const usuario of usuariosEnEspera) {
+      if (!usuario.email) {
+        console.warn(`Usuario ${usuario.userId} no tiene email para notificar`);
+        continue;
+      }
+
+      try {
+        const message = `
+🎉 ¡Buenas noticias! Un horario está disponible
+
+Estimado/a ${usuario.name || 'Usuario'},
+
+Se ha liberado un horario para el servicio que estabas esperando:
+
+📅 Servicio: ${cita.servicio}
+${cita.profesional ? `👨‍⚕️ Profesional: ${cita.profesional}\n` : ''}
+📆 Fecha: ${cita.fecha}
+🕐 Hora: ${cita.hora}
+
+¡Reserva tu cita ahora antes de que se agote!
+
+🔗 Reservar: ${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/usuario/reservar
+
+Equipo CitaVerde
+        `.trim();
+
+        const emailSent = await this.send({
+          to: usuario.email,
+          subject: `Horario Disponible - ${cita.servicio} - ${cita.fecha}`,
+          message,
+          type: 'email',
+        });
+
+        if (emailSent) {
+          notificados++;
+          
+          // Enviar notificación push
+          try {
+            await PushNotificationService.notifyCitaEvent('proxima', {
+              servicio: cita.servicio,
+              fecha: cita.fecha,
+              hora: cita.hora,
+              profesional: cita.profesional,
+            });
+          } catch (pushError) {
+            console.warn('Error enviando push notification:', pushError);
+          }
+        }
+
+        // Pequeño delay para no saturar
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (error) {
+        console.error(`Error notificando a usuario ${usuario.userId}:`, error);
+      }
+    }
+
+    return notificados;
+  }
 }

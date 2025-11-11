@@ -114,6 +114,19 @@ export async function createCita(cita: {
     }
   }
 
+  // Validar límite de citas activas por usuario
+  const { validarLimiteCitasActivas } = await import('@/lib/utils/cita-validations');
+  const citasUsuario = await getCitas({ userId: cita.user_id });
+  const citasActivas = citasUsuario.filter((c: any) => 
+    c.estado === 'confirmada' && 
+    new Date(`${c.fecha}T${c.hora}`) > new Date()
+  );
+  
+  const validacionLimite = validarLimiteCitasActivas(citasActivas.length);
+  if (!validacionLimite.puede) {
+    throw new Error(validacionLimite.razon || 'Límite de citas activas alcanzado');
+  }
+
   // Generar ID único
   const newId = `CT-${String(Date.now()).slice(-6)}`;
 
@@ -688,6 +701,29 @@ export async function getProfesionales(sedeId?: string) {
   } catch (err) {
     console.error('Error inesperado obteniendo profesionales:', err);
     return [];
+  }
+}
+
+/**
+ * Obtener un profesional por ID
+ */
+export async function getProfesionalById(profesionalId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('profesionales')
+      .select('*')
+      .eq('id', profesionalId)
+      .single();
+
+    if (error) {
+      console.error('Error obteniendo profesional:', error);
+      return null;
+    }
+
+    return data;
+  } catch (err) {
+    console.error('Error inesperado obteniendo profesional:', err);
+    return null;
   }
 }
 

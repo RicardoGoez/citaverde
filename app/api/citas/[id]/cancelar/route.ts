@@ -31,17 +31,15 @@ export async function GET(
       return NextResponse.redirect(new URL('/cita-error?reason=invalid-token', request.url));
     }
 
-    // Solo se puede cancelar si no está completada
-    if (cita.estado === 'completada') {
-      return NextResponse.redirect(new URL('/cita-error?reason=already-completed', request.url));
-    }
+    // Usar función de cancelación con validaciones
+    const { cancelarCitaConValidaciones } = await import('@/lib/services/cita-cancelation');
+    const resultado = await cancelarCitaConValidaciones(id, { skipTimeValidation: false });
 
-    if (cita.estado === 'cancelada') {
-      return NextResponse.redirect(new URL('/cita-error?reason=already-cancelled', request.url));
+    if (!resultado.success) {
+      // Redirigir a página de error con el motivo
+      const errorReason = resultado.error?.includes('menos de') ? 'too-late' : 'server-error';
+      return NextResponse.redirect(new URL(`/cita-error?reason=${errorReason}&message=${encodeURIComponent(resultado.error || '')}`, request.url));
     }
-
-    // Actualizar estado
-    await updateCita(id, { estado: 'cancelada' });
 
     // Redirigir a página de cancelación exitosa
     return NextResponse.redirect(new URL(`/cita-cancelada?cita=${id}`, request.url));

@@ -101,28 +101,22 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    // Verificar existencia en Supabase
-    const { supabase } = await import('@/lib/supabase');
-    const { data: cita, error } = await supabase
-      .from('citas')
-      .select('id, estado')
-      .eq('id', id)
-      .single();
+    
+    // Usar función de cancelación con validaciones
+    const { cancelarCitaConValidaciones } = await import('@/lib/services/cita-cancelation');
+    const resultado = await cancelarCitaConValidaciones(id);
 
-    if (error || !cita) {
+    if (!resultado.success) {
       return NextResponse.json(
-        { success: false, error: 'Cita no encontrada' },
-        { status: 404 }
+        { success: false, error: resultado.error || 'Error al cancelar cita' },
+        { status: 400 }
       );
     }
 
-    // Marcar como cancelada
-    await updateCita(id, { estado: 'cancelada' });
-
     return NextResponse.json({ success: true, message: 'Cita cancelada exitosamente' });
-  } catch (error) {
+  } catch (error: any) {
     return NextResponse.json(
-      { success: false, error: 'Error al cancelar cita' },
+      { success: false, error: error.message || 'Error al cancelar cita' },
       { status: 500 }
     );
   }

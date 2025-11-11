@@ -652,14 +652,24 @@ export default function CitasRecepcionista() {
 
   const handleCancel = async (cita: any) => {
     try {
-      await updateCita(cita.id, { estado: 'cancelada' });
+      // Usar función de cancelación con validaciones (omitiendo validación de tiempo para recepcionista)
+      const { cancelarCitaConValidaciones } = await import('@/lib/services/cita-cancelation');
+      const resultado = await cancelarCitaConValidaciones(cita.id, { 
+        skipTimeValidation: true, // Recepcionista puede cancelar en cualquier momento
+        skipNotifications: false 
+      });
+      
+      if (!resultado.success) {
+        error("Error", resultado.error || "No se pudo cancelar la cita");
+        return;
+      }
       
       // Recargar citas
       const citasData = await getCitas();
       const citasFiltradas = citasData.filter((c: any) => c.sede_id === sedeSeleccionada?.id);
       setCitas(citasFiltradas);
       
-      success("Cancelada", `Cita cancelada`);
+      success("Cancelada", `Cita cancelada exitosamente`);
     } catch (err: any) {
       console.error("Error cancelando cita:", err);
       error("Error", err.message || "No se pudo cancelar la cita");

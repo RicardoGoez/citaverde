@@ -235,6 +235,16 @@ function ReprogramarCitaContent() {
       return;
     }
 
+    // Validar tiempo mínimo para reprogramar
+    if (cita) {
+      const { puedeReprogramarCita } = await import('@/lib/utils/cita-validations');
+      const validacion = puedeReprogramarCita(cita.fecha, cita.hora);
+      if (!validacion.puede) {
+        showError("Error", validacion.razon || "No se puede reprogramar esta cita");
+        return;
+      }
+    }
+
     try {
       setSubmitting(true);
       await updateCita(citaId!, {

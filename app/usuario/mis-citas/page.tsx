@@ -159,7 +159,14 @@ export default function MisCitasPage() {
     if (!confirm("¿Estás seguro de que deseas cancelar esta cita?")) return;
 
     try {
-      await updateCita(citaId, { estado: "cancelada" });
+      // Usar función de cancelación con validaciones
+      const { cancelarCitaConValidaciones } = await import('@/lib/services/cita-cancelation');
+      const resultado = await cancelarCitaConValidaciones(citaId);
+      
+      if (!resultado.success) {
+        showError("Error", resultado.error || "No se pudo cancelar la cita");
+        return;
+      }
       
       // Recargar citas
       const userStr = sessionStorage.getItem("user");

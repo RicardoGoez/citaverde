@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { PWASetup } from "@/components/pwa-setup";
+import { PushNotificationsSetup } from "@/components/push-notifications-setup";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -66,6 +67,7 @@ export default function RootLayout({
       </head>
       <body className={`${inter.className} antialiased`} suppressHydrationWarning>
         <PWASetup />
+        <PushNotificationsSetup />
         {children}
         <Toaster />
       </body>

@@ -216,18 +216,50 @@ async function syncTurnos() {
   }
 }
 
-// Push notifications
+// Push notifications mejoradas
 self.addEventListener('push', (event) => {
   console.log('[SW] Push event recibido:', event);
   
-  const options = {
-    body: event.data ? event.data.text() : 'Nueva notificación de CitaVerde',
+  let notificationData = {
+    title: 'CitaVerde',
+    body: 'Nueva notificación',
     icon: '/icon-192.png',
     badge: '/icon-192.png',
-    vibrate: [200, 100, 200],
     tag: 'citaverde-notification',
-    requireInteraction: false,
-    actions: [
+    data: {},
+    actions: []
+  };
+
+  // Intentar parsear datos del evento
+  if (event.data) {
+    try {
+      const data = event.data.json();
+      notificationData = {
+        title: data.title || notificationData.title,
+        body: data.body || notificationData.body,
+        icon: data.icon || notificationData.icon,
+        badge: data.badge || notificationData.badge,
+        tag: data.tag || notificationData.tag,
+        data: data.data || {},
+        requireInteraction: data.requireInteraction || false,
+        vibrate: data.vibrate || [200, 100, 200],
+        actions: data.actions || []
+      };
+    } catch (e) {
+      // Si no es JSON, usar como texto
+      notificationData.body = event.data.text();
+    }
+  }
+
+  const options = {
+    body: notificationData.body,
+    icon: notificationData.icon,
+    badge: notificationData.badge,
+    vibrate: notificationData.vibrate,
+    tag: notificationData.tag,
+    data: notificationData.data,
+    requireInteraction: notificationData.requireInteraction,
+    actions: notificationData.actions.length > 0 ? notificationData.actions : [
       {
         action: 'open',
         title: 'Abrir CitaVerde',
@@ -241,19 +273,44 @@ self.addEventListener('push', (event) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification('CitaVerde', options)
+    self.registration.showNotification(notificationData.title, options)
   );
 });
 
-// Click en notificación
+// Click en notificación mejorado
 self.addEventListener('notificationclick', (event) => {
   console.log('[SW] Notificación clickeada:', event);
   
   event.notification.close();
   
+  const notificationData = event.notification.data || {};
+  const url = notificationData.url || '/';
+  
+  // Manejar acciones personalizadas
+  if (event.action === 'view' && notificationData.url) {
+    event.waitUntil(
+      clients.openWindow(notificationData.url)
+    );
+    return;
+  }
+  
   if (event.action === 'open' || event.action === '') {
     event.waitUntil(
-      clients.openWindow('/')
+      clients.matchAll({
+        type: 'window',
+        includeUncontrolled: true
+      }).then((clientList) => {
+        // Si hay una ventana abierta, enfocarla
+        for (const client of clientList) {
+          if (client.url === url && 'focus' in client) {
+            return client.focus();
+          }
+        }
+        // Si no, abrir nueva ventana
+        if (clients.openWindow) {
+          return clients.openWindow(url);
+        }
+      })
     );
   }
 });
@@ -261,5 +318,15 @@ self.addEventListener('notificationclick', (event) => {
 // Manejo de activación de ventanas
 self.addEventListener('notificationclose', (event) => {
   console.log('[SW] Notificación cerrada:', event);
+});
+
+// Manejo de mensajes desde la app para notificaciones
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
+    const { title, options } = event.data;
+    event.waitUntil(
+      self.registration.showNotification(title, options)
+    );
+  }
 });
 

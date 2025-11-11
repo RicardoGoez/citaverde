@@ -1,4 +1,5 @@
 import { mockUsers } from '@/lib/data';
+import { PushNotificationService } from './push-notifications';
 
 export interface NotificationOptions {
   to: string;
@@ -117,7 +118,8 @@ Saludos,
 Equipo ReservaFlow
     `.trim();
 
-    return await this.send({
+    // Enviar email
+    const emailSent = await this.send({
       to: email,
       subject: 'Cita confirmada - ReservaFlow',
       message,
@@ -135,6 +137,21 @@ Equipo ReservaFlow
       },
       qrData: cita.qr_code,
     });
+
+    // Enviar notificación push
+    try {
+      await PushNotificationService.notifyCitaEvent('confirmada', {
+        servicio: cita.servicio,
+        fecha: cita.fecha,
+        hora: cita.hora,
+        profesional: cita.profesional,
+        id: cita.id,
+      });
+    } catch (pushError) {
+      console.warn('Error enviando push notification:', pushError);
+    }
+
+    return emailSent;
   }
 
   /**
@@ -167,7 +184,8 @@ Le recordamos su cita:
 Equipo ReservaFlow
     `.trim();
 
-    return await this.send({
+    // Enviar email
+    const emailSent = await this.send({
       to: email,
       subject: 'Recordatorio de cita - ReservaFlow',
       message,
@@ -181,6 +199,20 @@ Equipo ReservaFlow
         profesional: cita.profesional,
       },
     });
+
+    // Enviar notificación push
+    try {
+      await PushNotificationService.notifyCitaEvent('recordatorio', {
+        servicio: cita.servicio,
+        fecha: cita.fecha,
+        hora: cita.hora,
+        profesional: cita.profesional,
+      });
+    } catch (pushError) {
+      console.warn('Error enviando push notification:', pushError);
+    }
+
+    return emailSent;
   }
 
   /**
@@ -210,7 +242,8 @@ Presenta tu código QR en la recepción.
 Equipo ReservaFlow
     `.trim();
 
-    return await this.send({
+    // Enviar email
+    const emailSent = await this.send({
       to: email,
       subject: `Turno #${turno.numero} - ReservaFlow`,
       message,
@@ -224,6 +257,18 @@ Equipo ReservaFlow
       },
       qrData: turno.qr_code,
     });
+
+    // Enviar notificación push
+    try {
+      await PushNotificationService.notifyTurnoEvent('obtenido', {
+        numero: turno.numero,
+        servicio: turno.servicio,
+      });
+    } catch (pushError) {
+      console.warn('Error enviando push notification:', pushError);
+    }
+
+    return emailSent;
   }
 
   /**
@@ -253,7 +298,8 @@ Por favor, acércate a la recepción inmediatamente.
 Equipo ReservaFlow
     `.trim();
 
-    return await this.send({
+    // Enviar email
+    const emailSent = await this.send({
       to: email,
       subject: `🚨 Tu turno #${turno.numero} está listo - ReservaFlow`,
       message,
@@ -266,6 +312,19 @@ Equipo ReservaFlow
         tiempoEstimado: 0,
       },
     });
+
+    // Enviar notificación push (prioritaria)
+    try {
+      await PushNotificationService.notifyTurnoEvent('listo', {
+        numero: turno.numero,
+        servicio: turno.servicio,
+        cola: turno.cola,
+      });
+    } catch (pushError) {
+      console.warn('Error enviando push notification:', pushError);
+    }
+
+    return emailSent;
   }
 
   /**
@@ -296,12 +355,26 @@ Tu turno #${turno.numero} está próximo.
 Equipo ReservaFlow
     `.trim();
 
-    return await this.send({
+    // Enviar email
+    const emailSent = await this.send({
       to: email,
       subject: `⏰ Turno #${turno.numero} próximo - ReservaFlow`,
       message,
       type: 'email',
     });
+
+    // Enviar notificación push
+    try {
+      await PushNotificationService.notifyTurnoEvent('proximo', {
+        numero: turno.numero,
+        servicio: turno.servicio,
+        turnosAntes: turno.turnosAntes,
+      });
+    } catch (pushError) {
+      console.warn('Error enviando push notification:', pushError);
+    }
+
+    return emailSent;
   }
 
   /**

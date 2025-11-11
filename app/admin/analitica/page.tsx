@@ -5,8 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { BarChart, TrendingUp, FileText, Leaf, Download, Calendar as CalendarIcon, X } from "lucide-react";
+import { BarChart, TrendingUp, FileText, Leaf, Download, Calendar as CalendarIcon, X, Wifi, WifiOff, RefreshCw } from "lucide-react";
 import { getCitas, getTurnos } from "@/lib/actions/database";
+import { useRealtime } from "@/lib/hooks/use-realtime";
 
 interface Metricas {
   citasTotales: number;
@@ -20,7 +21,11 @@ export default function AnaliticaPage() {
   const [turnos, setTurnos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [reporteAbierto, setReporteAbierto] = useState<string | null>(null);
+  
+  // Conexión en tiempo real
+  const { connected, data: realtimeData, error: realtimeError, lastUpdate } = useRealtime();
 
+  // Cargar datos iniciales
   useEffect(() => {
     const cargarDatos = async () => {
       try {
@@ -38,6 +43,26 @@ export default function AnaliticaPage() {
     };
     cargarDatos();
   }, []);
+
+  // Actualizar datos cuando llegan actualizaciones en tiempo real
+  useEffect(() => {
+    if (realtimeData && connected) {
+      // Recargar datos completos cada vez que hay una actualización
+      const actualizarDatos = async () => {
+        try {
+          const [citasData, turnosData] = await Promise.all([
+            getCitas(),
+            getTurnos()
+          ]);
+          setCitas(citasData);
+          setTurnos(turnosData);
+        } catch (error) {
+          console.error("Error actualizando datos:", error);
+        }
+      };
+      actualizarDatos();
+    }
+  }, [realtimeData, connected]);
 
   // Calcular métricas reales (usando useMemo para evitar recálculos innecesarios)
   const metricas = useMemo((): Metricas => {
@@ -122,6 +147,24 @@ export default function AnaliticaPage() {
           <h1 className="text-3xl font-bold text-foreground font-sans">Analítica y Reportes</h1>
           <p className="text-muted-foreground mt-1 font-sans">KPIs, reportes e indicadores ambientales</p>
         </div>
+        <div className="flex items-center gap-2">
+          {connected ? (
+            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+              <Wifi className="h-3 w-3 mr-1" />
+              Tiempo Real
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
+              <WifiOff className="h-3 w-3 mr-1" />
+              Sin Conexión
+            </Badge>
+          )}
+          {lastUpdate && (
+            <span className="text-xs text-muted-foreground">
+              Actualizado: {new Date(lastUpdate).toLocaleTimeString()}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Métricas Principales */}
@@ -135,8 +178,18 @@ export default function AnaliticaPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{metricas.citasTotales}</div>
-            <p className="text-xs mt-1 text-green-600">
-              Datos en tiempo real
+            <p className="text-xs mt-1 text-green-600 flex items-center gap-1">
+              {connected ? (
+                <>
+                  <Wifi className="h-3 w-3" />
+                  Actualización en tiempo real
+                </>
+              ) : (
+                <>
+                  <WifiOff className="h-3 w-3" />
+                  Modo offline
+                </>
+              )}
             </p>
           </CardContent>
         </Card>

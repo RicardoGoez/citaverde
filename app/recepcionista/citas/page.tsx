@@ -551,42 +551,42 @@ export default function CitasRecepcionista() {
         }
 
         // Crear nueva cita
-        const nuevaCita = await createCita({
+      const nuevaCita = await createCita({
           user_id: userIdParaCita,
-          servicio_id: formData.servicio,
-          servicio: servicioSeleccionado?.name || '',
-          profesional_id: formData.profesional || '',
-          profesional: profesionalSeleccionado?.name || '',
+        servicio_id: formData.servicio,
+        servicio: servicioSeleccionado?.name || '',
+        profesional_id: formData.profesional || '',
+        profesional: profesionalSeleccionado?.name || '',
           sede_id: sedeSeleccionada.id,
-          fecha: formData.fecha,
+        fecha: formData.fecha,
           hora: formData.hora,
           paciente_name: formData.paciente // Guardar el nombre del paciente
-        });
+      });
 
         // Enviar email de confirmación con recordatorio (si el usuario tiene email)
         if (emailPaciente) {
-          try {
-            await NotificationService.notifyCitaConfirmada(
+      try {
+        await NotificationService.notifyCitaConfirmada(
               userIdParaCita,
-              {
-                servicio: servicioSeleccionado?.name || '',
-                fecha: formData.fecha,
-                hora: formData.hora,
-                profesional: profesionalSeleccionado?.name || '',
-                id: nuevaCita.id,
-                confirmationToken: nuevaCita.confirmationToken,
-                qr_code: nuevaCita.qr_code
-              },
+          {
+            servicio: servicioSeleccionado?.name || '',
+            fecha: formData.fecha,
+            hora: formData.hora,
+            profesional: profesionalSeleccionado?.name || '',
+            id: nuevaCita.id,
+            confirmationToken: nuevaCita.confirmationToken,
+            qr_code: nuevaCita.qr_code
+          },
               emailPaciente
-            );
+        );
             console.log(`✅ Email de confirmación enviado a ${emailPaciente}`);
-          } catch (emailError) {
-            console.error("Error enviando email:", emailError);
-            // No fallar la creación de cita si el email falla
+      } catch (emailError) {
+        console.error("Error enviando email:", emailError);
+        // No fallar la creación de cita si el email falla
           }
         } else {
           console.warn(`⚠️ No se pudo enviar email: Usuario "${formData.paciente}" no tiene email registrado`);
-        }
+      }
 
       // Recargar citas
       const citasData = await getCitas();

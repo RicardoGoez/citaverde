@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "setup:vapid": "node scripts/setup-vapid.js",
+    "generate:vapid": "node scripts/generate-vapid-keys.js"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
@@ -31,9 +33,12 @@
     "react-qr-code": "^2.0.18",
     "recharts": "^3.3.0",
     "resend": "^6.4.1",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
     "tailwind-merge": "^3.3.1",
     "tailwindcss-animate": "1.0.7",
     "twilio": "^5.10.3",
+    "web-push": "^3.6.7",
     "zustand": "^5.0.8"
   },
   "devDependencies": {

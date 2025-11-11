@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
+    
     // Generar HTML según template o mensaje simple
     let htmlContent: string;
     let qrDataUrl: string | undefined;
@@ -154,36 +154,36 @@ export async function POST(request: NextRequest) {
     try {
       const transporter = await createTransporter();
       
-      const mailOptions = {
-        from: process.env.EMAIL_FROM || "ReservaFlow <noreply@reservaflow.com>",
-        to,
-        subject,
-        text: message,
-        html: htmlContent,
-      };
+    const mailOptions = {
+      from: process.env.EMAIL_FROM || "ReservaFlow <noreply@reservaflow.com>",
+      to,
+      subject,
+      text: message,
+      html: htmlContent,
+    };
 
-      const info = await transporter.sendMail(mailOptions);
+    const info = await transporter.sendMail(mailOptions);
 
-      // Log para desarrollo
-      if (process.env.NODE_ENV === "development") {
+    // Log para desarrollo
+    if (process.env.NODE_ENV === "development") {
         console.log("📧 Email enviado con SMTP:");
-        console.log("   A:", to);
-        console.log("   Asunto:", subject);
+      console.log("   A:", to);
+      console.log("   Asunto:", subject);
         const previewUrl = nodemailer.getTestMessageUrl(info);
         if (previewUrl) {
           console.log("   Preview URL:", previewUrl);
         }
-      }
+    }
 
-      return NextResponse.json(
-        { 
-          success: true, 
-          message: "Email enviado exitosamente",
+    return NextResponse.json(
+      { 
+        success: true, 
+        message: "Email enviado exitosamente",
           method: "smtp",
-          previewUrl: nodemailer.getTestMessageUrl(info) // Solo disponible en desarrollo/testing
-        },
-        { status: 200 }
-      );
+        previewUrl: nodemailer.getTestMessageUrl(info) // Solo disponible en desarrollo/testing
+      },
+      { status: 200 }
+    );
     } catch (smtpError) {
       console.error("Error enviando con SMTP:", smtpError);
       throw smtpError;

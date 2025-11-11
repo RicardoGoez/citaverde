@@ -2,11 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import webpush from "web-push";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 // Configurar VAPID keys
 const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
@@ -32,6 +27,23 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Validar variables de Supabase
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: "Variables de Supabase no configuradas. Configura NEXT_PUBLIC_SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY" 
+        },
+        { status: 500 }
+      );
+    }
+
+    // Crear cliente de Supabase
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
     const body = await request.json();
     const { userId, title, options } = body;

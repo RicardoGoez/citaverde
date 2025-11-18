@@ -120,20 +120,22 @@ export async function createCita(cita: {
     userRole = userExists.role;
   }
 
-  // Validar límite de citas activas por usuario (solo para usuarios regulares, no para recepcionistas ni admins)
-  // Si skipLimitValidation es true, omitir esta validación (para cuando recepcionistas/admins crean citas)
-  if (!cita.skipLimitValidation && userRole === 'usuario') {
-    const { validarLimiteCitasActivas } = await import('@/lib/utils/cita-validations');
-    const citasUsuario = await getCitas({ userId: cita.user_id });
-    const citasActivas = citasUsuario.filter((c: any) => 
-      c.estado === 'confirmada' && 
-      new Date(`${c.fecha}T${c.hora}`) > new Date()
-    );
-    
-    const validacionLimite = validarLimiteCitasActivas(citasActivas.length);
-    if (!validacionLimite.puede) {
-      throw new Error(validacionLimite.razon || 'Límite de citas activas alcanzado');
-    }
+  // Validar límite de citas activas por usuario
+  // Si skipLimitValidation es true, el recepcionista/admin puede crear citas sin límite total,
+  // PERO siempre se debe respetar el límite de citas activas por usuario individual
+  // (un usuario no puede tener más de X citas activas, sin importar quién las crea)
+  const { validarLimiteCitasActivas } = await import('@/lib/utils/cita-validations');
+  const citasUsuario = await getCitas({ userId: cita.user_id });
+  const citasActivas = citasUsuario.filter((c: any) => 
+    c.estado === 'confirmada' && 
+    new Date(`${c.fecha}T${c.hora}`) > new Date()
+  );
+  
+  const validacionLimite = validarLimiteCitasActivas(citasActivas.length);
+  if (!validacionLimite.puede) {
+    // Si el usuario ya tiene el límite de citas activas, no se puede crear más,
+    // incluso si es un recepcionista/admin quien la crea
+    throw new Error(validacionLimite.razon || 'El usuario ya tiene el máximo de citas activas permitidas. Por favor, cancele o complete alguna cita antes de crear una nueva.');
   }
 
   // Generar ID único

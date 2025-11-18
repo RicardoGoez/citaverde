@@ -629,7 +629,7 @@ export default function CitasRecepcionista() {
         fecha: formData.fecha,
           hora: formData.hora,
           paciente_name: formData.paciente, // Guardar el nombre del paciente
-          skipLimitValidation: true // Recepcionista puede crear citas sin límite
+          skipLimitValidation: false // Recepcionista puede crear citas, pero debe respetar el límite por usuario
       });
       
       console.log('✅ Cita creada:', {
@@ -1282,26 +1282,20 @@ export default function CitasRecepcionista() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label htmlFor="consultorio">Consultorio</Label>
-                <Select value={formData.consultorio} onValueChange={(value) => setFormData({ ...formData, consultorio: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={formData.consultorio ? "Consultorio asignado" : "Seleccionar consultorio (opcional)"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {consultorios.map((consultorio) => (
-                      <SelectItem key={consultorio.id} value={consultorio.id}>
-                        {consultorio.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {formData.consultorio && (
+              {formData.consultorio && (
+                <div>
+                  <Label htmlFor="consultorio">Consultorio</Label>
+                  <Input
+                    value={consultorios.find(c => c.id === formData.consultorio)?.name || 'No asignado'}
+                    readOnly
+                    disabled
+                    className="bg-gray-50 cursor-not-allowed"
+                  />
                   <p className="text-xs text-gray-500 mt-1">
-                    Consultorio: {consultorios.find(c => c.id === formData.consultorio)?.name || 'No asignado'}
+                    Consultorio asignado automáticamente desde el doctor
                   </p>
-                )}
-              </div>
+                </div>
+              )}
               </div>
             
             {/* Calendario personalizado */}

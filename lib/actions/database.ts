@@ -90,12 +90,14 @@ export async function createCita(cita: {
   hora: string;
   motivo?: string;
   paciente_name?: string;
+  skipLimitValidation?: boolean; // Si es true, omite la validación del límite de citas (para recepcionistas/admins)
 }) {
-  // Verificar que el usuario existe en la tabla usuarios
+  // Verificar que el usuario existe en la tabla usuarios y obtener su rol
+  let userRole: string | null = null;
   if (cita.user_id) {
     const { data: userExists, error: userError } = await supabase
       .from('usuarios')
-      .select('id')
+      .select('id, role')
       .eq('id', cita.user_id)
       .single();
 
@@ -112,19 +114,24 @@ export async function createCita(cita: {
       
       throw new Error(errorMessage);
     }
+
+    userRole = userExists.role;
   }
 
-  // Validar límite de citas activas por usuario
-  const { validarLimiteCitasActivas } = await import('@/lib/utils/cita-validations');
-  const citasUsuario = await getCitas({ userId: cita.user_id });
-  const citasActivas = citasUsuario.filter((c: any) => 
-    c.estado === 'confirmada' && 
-    new Date(`${c.fecha}T${c.hora}`) > new Date()
-  );
-  
-  const validacionLimite = validarLimiteCitasActivas(citasActivas.length);
-  if (!validacionLimite.puede) {
-    throw new Error(validacionLimite.razon || 'Límite de citas activas alcanzado');
+  // Validar límite de citas activas por usuario (solo para usuarios regulares, no para recepcionistas ni admins)
+  // Si skipLimitValidation es true, omitir esta validación (para cuando recepcionistas/admins crean citas)
+  if (!cita.skipLimitValidation && userRole === 'usuario') {
+    const { validarLimiteCitasActivas } = await import('@/lib/utils/cita-validations');
+    const citasUsuario = await getCitas({ userId: cita.user_id });
+    const citasActivas = citasUsuario.filter((c: any) => 
+      c.estado === 'confirmada' && 
+      new Date(`${c.fecha}T${c.hora}`) > new Date()
+    );
+    
+    const validacionLimite = validarLimiteCitasActivas(citasActivas.length);
+    if (!validacionLimite.puede) {
+      throw new Error(validacionLimite.razon || 'Límite de citas activas alcanzado');
+    }
   }
 
   // Generar ID único

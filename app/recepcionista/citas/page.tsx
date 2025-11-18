@@ -33,6 +33,7 @@ export default function CitasRecepcionista() {
   const [citas, setCitas] = useState<any[]>([]);
   const [servicios, setServicios] = useState<any[]>([]);
   const [profesionales, setProfesionales] = useState<any[]>([]);
+  const [usuarios, setUsuarios] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -44,6 +45,8 @@ export default function CitasRecepcionista() {
   const [disponibilidadesDoctor, setDisponibilidadesDoctor] = useState<any[]>([]);
   const [calendarioAbierto, setCalendarioAbierto] = useState(false);
   const [mesActual, setMesActual] = useState(new Date());
+  const [usuarioSeleccionado, setUsuarioSeleccionado] = useState<string>("");
+  const [modoPaciente, setModoPaciente] = useState<'manual' | 'usuario'>('manual');
   const { success, error } = useToasts();
 
   const [formData, setFormData] = useState({
@@ -78,16 +81,18 @@ export default function CitasRecepcionista() {
       }
 
       try {
-        const [citasData, serviciosData, profesionalesData] = await Promise.all([
+        const [citasData, serviciosData, profesionalesData, usuariosData] = await Promise.all([
           getCitas(),
           getServicios(sedeSeleccionada.id),
-          getProfesionales(sedeSeleccionada.id)
+          getProfesionales(sedeSeleccionada.id),
+          getUsuarios()
         ]);
         // Filtrar citas por sede
         const citasFiltradas = citasData.filter((cita: any) => cita.sede_id === sedeSeleccionada.id);
         setCitas(citasFiltradas);
         setServicios(serviciosData);
         setProfesionales(profesionalesData);
+        setUsuarios(usuariosData);
       } catch (err) {
         console.error("Error cargando datos:", err);
         error("Error", "Error cargando datos");
@@ -461,6 +466,9 @@ export default function CitasRecepcionista() {
       if (cita.fecha) {
         setMesActual(new Date(cita.fecha));
       }
+      // En modo edición, siempre usar modo manual
+      setModoPaciente('manual');
+      setUsuarioSeleccionado("");
     } else {
       setIsEditing(false);
       setEditingCita(null);
@@ -472,13 +480,26 @@ export default function CitasRecepcionista() {
         hora: ""
       });
       setMesActual(new Date());
+      setModoPaciente('manual');
+      setUsuarioSeleccionado("");
     }
     setCalendarioAbierto(false); // Cerrar calendario al abrir/cerrar modal
     setIsDialogOpen(true);
   };
 
   const handleCreateCita = async () => {
-    if (!formData.paciente || !formData.servicio || !formData.fecha || !formData.hora || !sedeSeleccionada) {
+    // Validar según el modo seleccionado
+    if (modoPaciente === 'usuario' && !usuarioSeleccionado) {
+      error("Error", "Por favor, selecciona un usuario autenticado");
+      return;
+    }
+    
+    if (modoPaciente === 'manual' && !formData.paciente) {
+      error("Error", "Por favor, ingresa el nombre del paciente");
+      return;
+    }
+    
+    if (!formData.servicio || !formData.fecha || !formData.hora || !sedeSeleccionada) {
       error("Error", "Complete todos los campos requeridos");
       return;
     }
@@ -525,16 +546,28 @@ export default function CitasRecepcionista() {
         
         success("Éxito", "Cita actualizada correctamente");
       } else {
-        // Buscar usuario por nombre del paciente (si existe)
+        // Determinar usuario y email según el modo seleccionado
         let usuarioEncontrado = null;
         let emailPaciente = null;
         let userIdParaCita = 'e0e0e0e0-0000-0000-0000-000000000003'; // Usuario genérico por defecto
         
-        if (formData.paciente) {
+        if (modoPaciente === 'usuario' && usuarioSeleccionado) {
+          // Si se seleccionó un usuario autenticado
+          usuarioEncontrado = usuarios.find((u: any) => u.id === usuarioSeleccionado);
+          if (usuarioEncontrado) {
+            userIdParaCita = usuarioEncontrado.id;
+            emailPaciente = usuarioEncontrado.email;
+            // Actualizar el nombre del paciente con el nombre del usuario seleccionado
+            if (!formData.paciente || formData.paciente !== usuarioEncontrado.name) {
+              setFormData({ ...formData, paciente: usuarioEncontrado.name });
+            }
+            console.log(`✅ Usuario seleccionado: ${usuarioEncontrado.name} (${usuarioEncontrado.email})`);
+          }
+        } else if (modoPaciente === 'manual' && formData.paciente) {
+          // Si se escribió manualmente, buscar usuario por nombre
           try {
-            const todosUsuarios = await getUsuarios();
             // Buscar usuario por nombre (búsqueda parcial, case-insensitive)
-            usuarioEncontrado = todosUsuarios.find((u: any) => 
+            usuarioEncontrado = usuarios.find((u: any) => 
               u.name && u.name.toLowerCase().trim() === formData.paciente.toLowerCase().trim()
             );
             
@@ -550,7 +583,7 @@ export default function CitasRecepcionista() {
           }
         }
 
-        // Crear nueva cita
+        // Crear nueva cita (recepcionista puede crear sin límite de citas)
       const nuevaCita = await createCita({
           user_id: userIdParaCita,
         servicio_id: formData.servicio,
@@ -560,7 +593,8 @@ export default function CitasRecepcionista() {
           sede_id: sedeSeleccionada.id,
         fecha: formData.fecha,
           hora: formData.hora,
-          paciente_name: formData.paciente // Guardar el nombre del paciente
+          paciente_name: formData.paciente, // Guardar el nombre del paciente
+          skipLimitValidation: true // Recepcionista puede crear citas sin límite
       });
 
         // Enviar email de confirmación con recordatorio (si el usuario tiene email)
@@ -604,6 +638,8 @@ export default function CitasRecepcionista() {
         fecha: "",
         hora: ""
       });
+      setUsuarioSeleccionado("");
+      setModoPaciente('manual');
     } catch (err: any) {
       console.error("Error creando cita:", err);
       error("Error", err.message || "No se pudo crear la cita");
@@ -1061,16 +1097,84 @@ export default function CitasRecepcionista() {
             )}
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Selector de modo: Manual o Usuario autenticado (solo al crear, no al editar) */}
+            {!isEditing && (
               <div>
-                <Label htmlFor="paciente">Paciente *</Label>
-                <Input
-                  id="paciente"
-                  value={formData.paciente}
-                  onChange={(e) => setFormData({ ...formData, paciente: e.target.value })}
-                  placeholder="Nombre completo"
-                />
+                <Label>Tipo de Paciente</Label>
+                <div className="flex gap-2 mt-1">
+                  <Button
+                    type="button"
+                    variant={modoPaciente === 'manual' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setModoPaciente('manual');
+                      setUsuarioSeleccionado("");
+                      setFormData({ ...formData, paciente: "" });
+                    }}
+                    className={modoPaciente === 'manual' ? 'bg-blue-600 hover:bg-blue-700' : ''}
+                  >
+                    Escribir Nombre
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={modoPaciente === 'usuario' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setModoPaciente('usuario');
+                      setFormData({ ...formData, paciente: "" });
+                    }}
+                    className={modoPaciente === 'usuario' ? 'bg-blue-600 hover:bg-blue-700' : ''}
+                  >
+                    Usuario Autenticado
+                  </Button>
+                </div>
               </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {modoPaciente === 'manual' || isEditing ? (
+                <div>
+                  <Label htmlFor="paciente">Paciente *</Label>
+                  <Input
+                    id="paciente"
+                    value={formData.paciente}
+                    onChange={(e) => setFormData({ ...formData, paciente: e.target.value })}
+                    placeholder="Nombre completo"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <Label htmlFor="usuario">Seleccionar Usuario *</Label>
+                  <Select 
+                    value={usuarioSeleccionado} 
+                    onValueChange={(value) => {
+                      setUsuarioSeleccionado(value);
+                      const usuario = usuarios.find((u: any) => u.id === value);
+                      if (usuario) {
+                        setFormData({ ...formData, paciente: usuario.name });
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar usuario autenticado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {usuarios
+                        .filter((u: any) => u.role === 'usuario') // Solo usuarios regulares
+                        .map((usuario) => (
+                          <SelectItem key={usuario.id} value={usuario.id}>
+                            {usuario.name} {usuario.email && `(${usuario.email})`}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  {usuarioSeleccionado && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Usuario seleccionado: {usuarios.find((u: any) => u.id === usuarioSeleccionado)?.name}
+                    </p>
+                  )}
+                </div>
+              )}
               <div>
                 <Label htmlFor="servicio">Servicio *</Label>
                 <Select value={formData.servicio} onValueChange={(value) => setFormData({ ...formData, servicio: value })}>
@@ -1258,7 +1362,20 @@ export default function CitasRecepcionista() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+            <Button variant="outline" onClick={() => {
+              setIsDialogOpen(false);
+              setFormData({
+                paciente: "",
+                servicio: "",
+                profesional: "",
+                fecha: "",
+                hora: ""
+              });
+              setUsuarioSeleccionado("");
+              setModoPaciente('manual');
+              setIsEditing(false);
+              setEditingCita(null);
+            }}>
               Cancelar
             </Button>
             <Button onClick={handleCreateCita} className="bg-[#2563EB] hover:bg-[#1E40AF]">

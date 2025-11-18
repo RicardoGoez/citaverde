@@ -3,23 +3,28 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { 
   Calendar, 
   Clock, 
   Users, 
   CheckCircle2,
   XCircle,
-  Timer
+  Timer,
+  Search
 } from "lucide-react";
 import { getCitas, getTurnos } from "@/lib/actions/database";
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 export default function RecepcionistaDashboard() {
   const [citas, setCitas] = useState<any[]>([]);
   const [turnos, setTurnos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'citas' | 'turnos'>('citas');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     const loadData = async () => {
@@ -42,20 +47,78 @@ export default function RecepcionistaDashboard() {
   }, []);
 
   // Calcular estadísticas
+  const ahora = new Date();
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
   
+  // Filtrar citas del día que aún no han pasado (fecha + hora)
   const citasHoy = citas.filter(c => {
     if (!c.fecha) return false;
-    const fecha = new Date(c.fecha);
-    return fecha >= hoy && fecha < new Date(hoy.getTime() + 24 * 60 * 60 * 1000);
+    
+    // Verificar que sea del día de hoy
+    const fechaCita = new Date(c.fecha);
+    fechaCita.setHours(0, 0, 0, 0);
+    if (fechaCita.getTime() !== hoy.getTime()) return false;
+    
+    // Verificar que la hora aún no haya pasado (si tiene hora)
+    if (c.hora) {
+      const [horas, minutos] = c.hora.split(':').map(Number);
+      const fechaHoraCita = new Date(c.fecha);
+      fechaHoraCita.setHours(horas, minutos, 0, 0);
+      
+      // Si la hora ya pasó, no incluirla (a menos que esté en curso o completada)
+      if (fechaHoraCita < ahora && c.estado !== 'en_curso' && c.estado !== 'completada') {
+        return false;
+      }
+    }
+    
+    // Solo mostrar citas activas (no canceladas)
+    return c.estado !== 'cancelada';
   });
 
-  const citasAtendidas = citas.filter(c => c.estado === 'completada').length;
-  const citasPendientes = citas.filter(c => c.estado === 'pendiente' || c.estado === 'confirmada').length;
-  const turnosEnEspera = turnos.filter(t => t.estado === 'en_espera' || t.estado === 'en_atencion');
-  const turnosActivos = turnosEnEspera.slice(0, 4);
-  const noAsistieron = citas.filter(c => c.no_show === true).length;
+  // Citas atendidas del día (solo las que ya pasaron o están completadas)
+  const citasAtendidas = citasHoy.filter(c => c.estado === 'completada').length;
+  
+  // Citas pendientes del día (confirmadas o pendientes que aún no han pasado)
+  const citasPendientes = citasHoy.filter(c => 
+    (c.estado === 'pendiente' || c.estado === 'confirmada' || c.estado === 'en_curso')
+  ).length;
+  
+  // Turnos activos del día (en espera o en atención) que no hayan pasado
+  const turnosEnEspera = turnos.filter(t => {
+    const estadoActivo = t.estado === 'en_espera' || t.estado === 'en_atencion';
+    if (!estadoActivo) return false;
+    
+    // Verificar que sea del día de hoy
+    if (t.fecha) {
+      const fechaTurno = new Date(t.fecha);
+      fechaTurno.setHours(0, 0, 0, 0);
+      if (fechaTurno.getTime() !== hoy.getTime()) {
+        return false; // No es del día de hoy
+      }
+    } else {
+      // Si no tiene fecha, asumir que es del día de hoy (turnos sin fecha específica)
+      // Pero mejor excluirlos si no tienen fecha para evitar confusión
+      return false;
+    }
+    
+    // Si tiene hora, verificar que no haya pasado
+    if (t.hora) {
+      const [horas, minutos] = t.hora.split(':').map(Number);
+      const fechaHoraTurno = new Date(t.fecha);
+      fechaHoraTurno.setHours(horas, minutos, 0, 0);
+      
+      // Si la hora ya pasó y no está en atención, no incluirlo
+      if (fechaHoraTurno < ahora && t.estado !== 'en_atencion') {
+        return false;
+      }
+    }
+    
+    return true;
+  });
+  
+  // No presentados del día (solo de hoy)
+  const noAsistieron = citasHoy.filter(c => c.no_show === true).length;
 
   if (loading) {
     return (
@@ -108,8 +171,11 @@ export default function RecepcionistaDashboard() {
             </div>
           </Button>
         </Link>
-        <Button className="w-full h-24 bg-gradient-to-br from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all">
-          <Calendar className="mr-3 h-8 w-8" />
+        <Button 
+          onClick={() => setIsSearchOpen(true)}
+          className="w-full h-24 bg-gradient-to-br from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all"
+        >
+          <Search className="mr-3 h-8 w-8" />
           <div className="text-left">
             <div className="text-lg">Buscar</div>
             <div className="text-xs opacity-90">Buscar registro</div>
@@ -223,9 +289,17 @@ export default function RecepcionistaDashboard() {
             <p className="text-sm text-gray-600 mt-1">Gestiona las citas programadas para hoy</p>
           </CardHeader>
           <CardContent className="p-0">
-            {citasHoy.slice(0, 4).length > 0 ? (
+            {citasHoy.length > 0 ? (
               <div className="divide-y divide-gray-200">
-                {citasHoy.slice(0, 4).map((cita) => (
+                {citasHoy
+                  .sort((a, b) => {
+                    // Ordenar por hora (las más próximas primero)
+                    if (a.hora && b.hora) {
+                      return a.hora.localeCompare(b.hora);
+                    }
+                    return 0;
+                  })
+                  .map((cita) => (
                   <div key={cita.id} className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
                     <div className="flex items-center gap-4">
                       <div className="h-12 w-12 rounded-lg bg-blue-100 flex items-center justify-center">
@@ -265,9 +339,23 @@ export default function RecepcionistaDashboard() {
             <p className="text-sm text-gray-600 mt-1">Visualiza los turnos activos del día</p>
           </CardHeader>
           <CardContent className="p-0">
-            {turnosActivos.length > 0 ? (
+            {turnosEnEspera.length > 0 ? (
               <div className="divide-y divide-gray-200">
-                {turnosActivos.map((turno) => (
+                {turnosEnEspera
+                  .sort((a, b) => {
+                    // Ordenar por número de turno (menor primero)
+                    if (a.numero && b.numero) {
+                      return a.numero - b.numero;
+                    }
+                    // Si no tienen número, ordenar por fecha/hora si tienen
+                    if (a.fecha && b.fecha && a.hora && b.hora) {
+                      const fechaA = new Date(`${a.fecha}T${a.hora}`);
+                      const fechaB = new Date(`${b.fecha}T${b.hora}`);
+                      return fechaA.getTime() - fechaB.getTime();
+                    }
+                    return 0;
+                  })
+                  .map((turno) => (
                   <div key={turno.id} className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
                     <div className="flex items-center gap-4">
                       <div className="h-12 w-12 rounded-lg bg-purple-100 flex items-center justify-center">
@@ -302,6 +390,139 @@ export default function RecepcionistaDashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* Modal de Búsqueda */}
+      <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold">Buscar Registros</DialogTitle>
+            <DialogDescription>
+              Busca citas y turnos por nombre de paciente, servicio, fecha o ID
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Buscar por nombre, servicio, fecha o ID..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            {searchQuery && (
+              <div className="space-y-4">
+                {/* Resultados de Citas */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-2 text-blue-600">Citas</h3>
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {citas
+                      .filter(c => {
+                        const query = searchQuery.toLowerCase();
+                        const nombre = (c.paciente_name || c.user_name || '').toLowerCase();
+                        const servicio = (c.servicio || c.servicio_name || '').toLowerCase();
+                        const fecha = c.fecha || '';
+                        const id = c.id?.toLowerCase() || '';
+                        return nombre.includes(query) || servicio.includes(query) || fecha.includes(query) || id.includes(query);
+                      })
+                      .slice(0, 10)
+                      .map((cita) => (
+                        <Card key={cita.id} className="p-3 hover:bg-gray-50 cursor-pointer">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-semibold">{cita.paciente_name || cita.user_name || 'Sin nombre'}</p>
+                              <p className="text-sm text-gray-600">
+                                {cita.fecha} {cita.hora} • {cita.servicio || cita.servicio_name || 'Sin servicio'}
+                              </p>
+                            </div>
+                            <Badge className={
+                              cita.estado === 'completada' ? 'bg-green-100 text-green-700' :
+                              cita.estado === 'cancelada' ? 'bg-red-100 text-red-700' :
+                              cita.estado === 'en_curso' ? 'bg-blue-100 text-blue-700' :
+                              'bg-gray-100 text-gray-700'
+                            }>
+                              {cita.estado}
+                            </Badge>
+                          </div>
+                        </Card>
+                      ))}
+                    {citas.filter(c => {
+                      const query = searchQuery.toLowerCase();
+                      const nombre = (c.paciente_name || c.user_name || '').toLowerCase();
+                      const servicio = (c.servicio || c.servicio_name || '').toLowerCase();
+                      const fecha = c.fecha || '';
+                      const id = c.id?.toLowerCase() || '';
+                      return nombre.includes(query) || servicio.includes(query) || fecha.includes(query) || id.includes(query);
+                    }).length === 0 && (
+                      <p className="text-sm text-gray-500 text-center py-4">No se encontraron citas</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Resultados de Turnos */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-2 text-purple-600">Turnos</h3>
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {turnos
+                      .filter(t => {
+                        const query = searchQuery.toLowerCase();
+                        const nombre = (t.user_name || t.paciente || '').toLowerCase();
+                        const servicio = (t.servicio || '').toLowerCase();
+                        const numero = t.numero?.toString() || '';
+                        const id = t.id?.toLowerCase() || '';
+                        return nombre.includes(query) || servicio.includes(query) || numero.includes(query) || id.includes(query);
+                      })
+                      .slice(0, 10)
+                      .map((turno) => (
+                        <Card key={turno.id} className="p-3 hover:bg-gray-50 cursor-pointer">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-semibold">Turno #{turno.numero}</p>
+                              <p className="text-sm text-gray-600">
+                                {turno.user_name || turno.paciente || 'Usuario'} • {turno.servicio || 'Servicio'}
+                                {turno.fecha && ` • ${turno.fecha} ${turno.hora || ''}`}
+                              </p>
+                            </div>
+                            <Badge className={
+                              turno.estado === 'en_espera' ? 'bg-yellow-100 text-yellow-700' :
+                              turno.estado === 'en_atencion' ? 'bg-blue-100 text-blue-700' :
+                              turno.estado === 'atendido' ? 'bg-green-100 text-green-700' :
+                              'bg-gray-100 text-gray-700'
+                            }>
+                              {turno.estado === 'en_espera' ? 'En Espera' :
+                               turno.estado === 'en_atencion' ? 'En Atención' :
+                               turno.estado === 'atendido' ? 'Atendido' : turno.estado}
+                            </Badge>
+                          </div>
+                        </Card>
+                      ))}
+                    {turnos.filter(t => {
+                      const query = searchQuery.toLowerCase();
+                      const nombre = (t.user_name || t.paciente || '').toLowerCase();
+                      const servicio = (t.servicio || '').toLowerCase();
+                      const numero = t.numero?.toString() || '';
+                      const id = t.id?.toLowerCase() || '';
+                      return nombre.includes(query) || servicio.includes(query) || numero.includes(query) || id.includes(query);
+                    }).length === 0 && (
+                      <p className="text-sm text-gray-500 text-center py-4">No se encontraron turnos</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!searchQuery && (
+              <div className="text-center py-8 text-gray-500">
+                <Search className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p>Ingresa un término de búsqueda para encontrar citas y turnos</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

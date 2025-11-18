@@ -640,6 +640,7 @@ export default function CitasPage() {
           fecha: formData.fecha,
           hora: formData.hora,
           motivo: formData.notas || undefined,
+          skipLimitValidation: true // Admin puede crear citas sin límite
         });
 
         // Enviar email de confirmación con recordatorio

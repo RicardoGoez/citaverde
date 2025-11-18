@@ -8,7 +8,10 @@ import {
   MessageSquare,
   Clock,
   Users,
-  Ticket
+  Ticket,
+  CheckCircle,
+  XCircle,
+  UserCheck
 } from "lucide-react";
 import { getTurnos, getColas, updateTurno } from "@/lib/actions/database";
 import { getUserById } from "@/lib/auth";
@@ -146,6 +149,66 @@ export default function TurnosRecepcionista() {
     return `${String(Math.floor(diff / 60)).padStart(2, '0')}:${String(diff % 60).padStart(2, '0')}`;
   };
 
+  const handleMarcarAtendido = async (turnoId: string) => {
+    try {
+      await updateTurno(turnoId, { estado: 'atendido' });
+      success("Turno marcado", "El turno ha sido marcado como atendido");
+      
+      // Recargar datos
+      const turnosData = await getTurnos();
+      const turnosFiltrados = turnosData.filter((t: any) => t.sede_id === sedeSeleccionada?.id);
+      setTurnos(turnosFiltrados);
+    } catch (err: any) {
+      showError("Error", err.message || "No se pudo actualizar el turno");
+    }
+  };
+
+  const handleMarcarNoPresentado = async (turnoId: string) => {
+    try {
+      await updateTurno(turnoId, { estado: 'no_presentado' });
+      success("Turno actualizado", "El turno ha sido marcado como no presentado");
+      
+      // Recargar datos
+      const turnosData = await getTurnos();
+      const turnosFiltrados = turnosData.filter((t: any) => t.sede_id === sedeSeleccionada?.id);
+      setTurnos(turnosFiltrados);
+    } catch (err: any) {
+      showError("Error", err.message || "No se pudo actualizar el turno");
+    }
+  };
+
+  const handleLlamarTurno = async (turno: any) => {
+    try {
+      await updateTurno(turno.id, { estado: 'en_atencion' });
+      success("Llamando turno", `Turno #${turno.numero}`);
+      
+      // Notificar al usuario
+      try {
+        const user = await getUserById(turno.user_id);
+        if (user && user.email) {
+          await NotificationService.notifyTurnoListo(
+            turno.user_id,
+            {
+              numero: turno.numero,
+              servicio: turno.servicio || 'Servicio',
+              cola: turno.cola || colaActual?.name || colaActual?.nombre
+            },
+            user.email
+          );
+        }
+      } catch (notifError) {
+        console.error("Error enviando notificación:", notifError);
+      }
+      
+      // Recargar datos
+      const turnosData = await getTurnos();
+      const turnosFiltrados = turnosData.filter((t: any) => t.sede_id === sedeSeleccionada?.id);
+      setTurnos(turnosFiltrados);
+    } catch (err: any) {
+      showError("Error", err.message || "No se pudo actualizar el turno");
+    }
+  };
+
   const getEstadoColor = (estado: string) => {
     switch (estado) {
       case 'en_atencion':
@@ -259,7 +322,7 @@ export default function TurnosRecepcionista() {
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[800px]">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="text-left py-4 px-6 text-xs font-bold text-gray-700 uppercase tracking-wider">#</th>
@@ -324,11 +387,48 @@ export default function TurnosRecepcionista() {
                           {turno.estado === 'en_espera' && (
                             <Button 
                               size="sm" 
-                              onClick={() => handleLlamarSiguiente()}
+                              onClick={() => handleLlamarTurno(turno)}
                               className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-md"
+                              title="Llamar a este turno"
                             >
+                              <Play className="h-3 w-3 mr-1" />
                               Llamar
                             </Button>
+                          )}
+                          {turno.estado === 'en_atencion' && (
+                            <>
+                              <Button 
+                                size="sm" 
+                                onClick={() => handleMarcarAtendido(turno.id)}
+                                className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-md"
+                                title="Marcar como atendido"
+                              >
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                Atendido
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => handleMarcarNoPresentado(turno.id)}
+                                className="border-red-300 text-red-700 hover:bg-red-50 hover:border-red-400"
+                                title="Marcar como no presentado"
+                              >
+                                <XCircle className="h-3 w-3 mr-1" />
+                                No Presente
+                              </Button>
+                            </>
+                          )}
+                          {(turno.estado === 'atendido' || turno.estado === 'completado') && (
+                            <Badge className="bg-green-100 text-green-700 border-green-300">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Completado
+                            </Badge>
+                          )}
+                          {turno.estado === 'no_presentado' && (
+                            <Badge className="bg-red-100 text-red-700 border-red-300">
+                              <XCircle className="h-3 w-3 mr-1" />
+                              No Presente
+                            </Badge>
                           )}
                         </div>
                       </td>

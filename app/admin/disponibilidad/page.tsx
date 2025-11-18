@@ -137,11 +137,12 @@ export default function DisponibilidadPage() {
         const { profesional, id, ...datosParaCrear } = formData;
         
         // Agregar sede_id si no está presente
-        if (!datosParaCrear.sede_id && sedeSeleccionada) {
-          datosParaCrear.sede_id = sedeSeleccionada.id;
+        const datosConSede: any = { ...datosParaCrear };
+        if (!datosConSede.sede_id && sedeSeleccionada) {
+          datosConSede.sede_id = sedeSeleccionada.id;
         }
         
-        await createDisponibilidad(datosParaCrear as any);
+        await createDisponibilidad(datosConSede);
         showSuccess("Éxito", "Disponibilidad creada");
       }
       

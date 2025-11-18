@@ -16,11 +16,16 @@ import { useSede } from "@/lib/hooks/use-sede";
 interface Recurso {
   id: string;
   nombre: string;
-  tipo: "consultorio" | "sala" | "equipo" | "vehiculo";
+  tipo: "consultorio" | "ventanilla" | "equipo" | "otro" | "sala" | "vehiculo";
   sede_id: string;
   estado: "disponible" | "ocupado" | "mantenimiento";
   capacidad?: number;
   descripcion?: string;
+  modelo?: string;
+  marca?: string;
+  numero_serie?: string;
+  ubicacion?: string;
+  numero_ventanilla?: string;
 }
 
 export default function RecursosPage() {
@@ -49,7 +54,7 @@ export default function RecursosPage() {
   
   const [formData, setFormData] = useState<{
     nombre: string;
-    tipo: "consultorio" | "ventanilla" | "equipo" | "otro";
+    tipo: "consultorio" | "ventanilla" | "equipo" | "otro" | "sala" | "vehiculo";
     sede_id: string;
     estado: "disponible" | "ocupado" | "mantenimiento";
     capacidad: number;

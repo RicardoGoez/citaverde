@@ -73,8 +73,8 @@ export function generateEmailTemplate(data: EmailTemplateData): string {
           <!-- Header -->
           <tr>
             <td style="background: linear-gradient(135deg, #16A34A 0%, #15803D 100%); padding: 30px 20px; text-align: center;">
-              <div style="color: white; font-size: 28px; font-weight: bold; margin-bottom: 5px;">🏥 ReservaFlow</div>
-              <div style="color: rgba(255,255,255,0.9); font-size: 14px;">Sistema de Gestión de Citas</div>
+              <div style="color: white; font-size: 28px; font-weight: bold; margin-bottom: 5px;">🏥 Citaverde</div>
+              <div style="color: rgba(255,255,255,0.9); font-size: 14px;">Centro Médico del Sinú</div>
             </td>
           </tr>
 
@@ -107,7 +107,7 @@ export function generateEmailTemplate(data: EmailTemplateData): string {
               ` : ''}
               <div style="color: #9ca3af; font-size: 12px; text-align: center; line-height: 1.5;">
                 <p style="margin: 5px 0;">Este es un email automático, por favor no responder.</p>
-                <p style="margin: 5px 0;">© ${new Date().getFullYear()} ReservaFlow. Todos los derechos reservados.</p>
+                <p style="margin: 5px 0;">© ${new Date().getFullYear()} Citaverde. Todos los derechos reservados.</p>
               </div>
             </td>
           </tr>
@@ -257,7 +257,7 @@ export function getRecordatorioTemplate(data: {
   return generateEmailTemplate({
     title: "Recordatorio de Cita",
     content,
-    footer: "Para gestionar tus citas, visita tu panel de usuario en ReservaFlow."
+    footer: "Para gestionar tus citas, visita tu panel de usuario en Citaverde."
   });
 }
 

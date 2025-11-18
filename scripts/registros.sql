@@ -497,7 +497,7 @@ INSERT INTO plantillas_mensajes (nombre, tipo, categoria, asunto, contenido, var
 'Estimado/a {{nombre}}, le recordamos su cita el día {{fecha}} a las {{hora}} en {{sede}} ({{direccion}}). Por favor, confirme su asistencia.',
 ARRAY['{{nombre}}', '{{fecha}}', '{{hora}}', '{{sede}}', '{{direccion}}'], true),
 
-('Confirmación Cita', 'email', 'confirmacion', 'Confirmación de Cita - ReservaFlow',
+('Confirmación Cita', 'email', 'confirmacion', 'Confirmación de Cita - Citaverde',
 'Su cita ha sido confirmada para el día {{fecha}} a las {{hora}}. Su código de cita es: {{codigo}}.',
 ARRAY['{{nombre}}', '{{fecha}}', '{{hora}}', '{{codigo}}'], true),
 
@@ -505,7 +505,7 @@ ARRAY['{{nombre}}', '{{fecha}}', '{{hora}}', '{{codigo}}'], true),
 'Su turno está listo. Acérquese a la ventanilla {{numero}}. Tiempo estimado: {{tiempo}} min.',
 ARRAY['{{nombre}}', '{{numero}}', '{{tiempo}}'], true),
 
-('Cancelación Cita', 'email', 'cancelacion', 'Cita Cancelada - ReservaFlow',
+('Cancelación Cita', 'email', 'cancelacion', 'Cita Cancelada - Citaverde',
 'Su cita programada para el día {{fecha}} ha sido cancelada. Si desea reprogramar, por favor visite nuestra plataforma.',
 ARRAY['{{nombre}}', '{{fecha}}', '{{motivo}}'], true),
 

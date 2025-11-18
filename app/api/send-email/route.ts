@@ -255,7 +255,7 @@ export async function POST(request: NextRequest) {
       const transporter = await createTransporter();
       
     const mailOptions = {
-      from: process.env.EMAIL_FROM || "ReservaFlow <noreply@reservaflow.com>",
+      from: process.env.EMAIL_FROM || "Citaverde <noreply@citaverde.com>",
       to,
       subject,
       text: message,

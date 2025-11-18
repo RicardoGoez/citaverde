@@ -43,7 +43,7 @@ Resend es un servicio moderno y fácil de usar para enviar emails.
 2. **Crear contraseña de aplicación**
    - Ve a https://myaccount.google.com/apppasswords
    - Selecciona "Correo" y "Otro (nombre personalizado)"
-   - Ingresa "ReservaFlow" como nombre
+   - Ingresa "Citaverde" como nombre
    - Copia la contraseña generada (16 caracteres)
 
 3. **Agregar variables de entorno**
@@ -54,7 +54,7 @@ Resend es un servicio moderno y fácil de usar para enviar emails.
    EMAIL_PORT=587
    EMAIL_USER=tu-email@gmail.com
    EMAIL_PASS=tu-contraseña-de-aplicacion-16-caracteres
-   EMAIL_FROM=ReservaFlow <tu-email@gmail.com>
+   EMAIL_FROM=Citaverde <tu-email@gmail.com>
    ```
 
 4. **Reiniciar el servidor**
@@ -69,7 +69,7 @@ EMAIL_HOST=smtp.office365.com
 EMAIL_PORT=587
 EMAIL_USER=tu-email@outlook.com
 EMAIL_PASS=tu-contraseña
-EMAIL_FROM=ReservaFlow <tu-email@outlook.com>
+EMAIL_FROM=Citaverde <tu-email@outlook.com>
 ```
 
 ### Para otros proveedores SMTP:

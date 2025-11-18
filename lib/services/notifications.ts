@@ -115,13 +115,13 @@ O ingresa a tu cuenta en la app.
 Por favor, presente su código QR en la recepción.
 
 Saludos,
-Equipo ReservaFlow
+Equipo Citaverde
     `.trim();
 
     // Enviar email
     const emailSent = await this.send({
       to: email,
-      subject: 'Cita confirmada - ReservaFlow',
+      subject: 'Cita confirmada - Citaverde',
       message,
       type: 'email',
       template: 'cita_confirmada',
@@ -181,13 +181,13 @@ Le recordamos su cita:
 
 ¡Nos vemos pronto!
 
-Equipo ReservaFlow
+Equipo Citaverde
     `.trim();
 
     // Enviar email
     const emailSent = await this.send({
       to: email,
-      subject: 'Recordatorio de cita - ReservaFlow',
+      subject: 'Recordatorio de cita - Citaverde',
       message,
       type: 'email',
       template: 'recordatorio',
@@ -239,13 +239,13 @@ ${user?.name || 'Usuario'}, tu turno #${turno.numero} está listo.
 
 Presenta tu código QR en la recepción.
 
-Equipo ReservaFlow
+Equipo Citaverde
     `.trim();
 
     // Enviar email
     const emailSent = await this.send({
       to: email,
-      subject: `Turno #${turno.numero} - ReservaFlow`,
+      subject: `Turno #${turno.numero} - Citaverde`,
       message,
       type: 'email',
       template: 'turno_obtenido',
@@ -295,13 +295,13 @@ ${turno.cola ? `📍 Cola: ${turno.cola}\n` : ''}
 
 Por favor, acércate a la recepción inmediatamente.
 
-Equipo ReservaFlow
+Equipo Citaverde
     `.trim();
 
     // Enviar email
     const emailSent = await this.send({
       to: email,
-      subject: `🚨 Tu turno #${turno.numero} está listo - ReservaFlow`,
+      subject: `🚨 Tu turno #${turno.numero} está listo - Citaverde`,
       message,
       type: 'email',
       template: 'turno_obtenido',
@@ -352,13 +352,13 @@ Tu turno #${turno.numero} está próximo.
 🎯 Turnos antes: ${turno.turnosAntes}
 📍 Te recomendamos acercarte a la recepción en los próximos minutos.
 
-Equipo ReservaFlow
+Equipo Citaverde
     `.trim();
 
     // Enviar email
     const emailSent = await this.send({
       to: email,
-      subject: `⏰ Turno #${turno.numero} próximo - ReservaFlow`,
+      subject: `⏰ Turno #${turno.numero} próximo - Citaverde`,
       message,
       type: 'email',
     });
@@ -404,12 +404,12 @@ ${user?.name || 'Usuario'}, has sido registrado en recepción.
 
 Por favor espera a ser llamado.
 
-Equipo ReservaFlow
+Equipo Citaverde
     `.trim();
 
     return await this.send({
       to: email,
-      subject: 'Check-in confirmado - ReservaFlow',
+      subject: 'Check-in confirmado - Citaverde',
       message,
       type: 'email',
     });
@@ -555,12 +555,12 @@ Tu opinión es muy importante para nosotros. ¿Podrías compartir tu experiencia
 
 ¡Gracias por tu tiempo!
 
-Equipo ReservaFlow
+Equipo Citaverde
     `.trim();
 
     return await this.send({
       to: email,
-      subject: '⭐ Cuéntanos tu experiencia - ReservaFlow',
+      subject: '⭐ Cuéntanos tu experiencia - Citaverde',
       message,
       type: 'email',
     });

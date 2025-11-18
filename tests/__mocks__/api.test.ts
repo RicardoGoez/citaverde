@@ -12,7 +12,7 @@
  * }
  */
 
-describe('API REST - ReservaFlow', () => {
+describe('API REST - Citaverde', () => {
   describe('GET /api/citas', () => {
     it('debe retornar todas las citas', async () => {
       const response = await fetch('/api/citas');

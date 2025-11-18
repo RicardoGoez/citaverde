@@ -46,7 +46,7 @@ export function RecepcionistaSidebar() {
     <div className="w-64 bg-card border-r border-border flex flex-col">
       {/* Logo */}
       <div className="p-6 border-b border-border">
-        <h1 className="text-2xl font-bold text-primary">ReservaFlow</h1>
+        <h1 className="text-2xl font-bold text-primary">Citaverde</h1>
         <p className="text-xs text-muted-foreground">Recepción</p>
       </div>
 

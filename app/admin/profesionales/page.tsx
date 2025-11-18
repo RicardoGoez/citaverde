@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Search, Plus, MoreVertical, Edit, Trash2, UserPlus } from "lucide-react";
-import { getProfesionales, getSedes, getServicios, createProfesional, updateProfesional, deleteProfesional } from "@/lib/actions/database";
+import { getProfesionales, getSedes, getServicios, createProfesional, updateProfesional, deleteProfesional, getRecursos } from "@/lib/actions/database";
 import { useState, useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToasts } from "@/lib/hooks/use-toast";
@@ -18,6 +18,7 @@ export default function ProfesionalesPage() {
   const [profesionales, setProfesionales] = useState<any[]>([]);
   const [sedes, setSedes] = useState<any[]>([]);
   const [servicios, setServicios] = useState<any[]>([]);
+  const [consultorios, setConsultorios] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -32,6 +33,7 @@ export default function ProfesionalesPage() {
     phone: "",
     sede_id: "",
     servicios: [] as string[],
+    consultorio_id: "",
     is_active: true,
   });
 
@@ -59,14 +61,23 @@ export default function ProfesionalesPage() {
       }
 
       try {
-        const [profesionalesData, sedesData, serviciosData] = await Promise.all([
+        const [profesionalesData, sedesData, serviciosData, recursosData] = await Promise.all([
           getProfesionales(sedeSeleccionada.id),
           getSedes(),
-          getServicios(sedeSeleccionada.id)
+          getServicios(sedeSeleccionada.id),
+          getRecursos(sedeSeleccionada.id)
         ]);
+        // Filtrar solo consultorios
+        // Filtrar solo consultorios disponibles (excluir mantenimiento y inactivos)
+        const consultoriosFiltrados = recursosData.filter((r: any) => 
+          r.tipo === 'consultorio' && 
+          r.is_active !== false && 
+          r.estado !== 'mantenimiento'
+        );
         setProfesionales(profesionalesData);
         setSedes(sedesData);
         setServicios(serviciosData);
+        setConsultorios(consultoriosFiltrados);
       } catch (err) {
         console.error("Error cargando datos:", err);
         error("Error", "No se pudieron cargar los datos");
@@ -93,6 +104,7 @@ export default function ProfesionalesPage() {
         phone: profesional.phone || "",
         sede_id: profesional.sede_id,
         servicios: serviciosIds,
+        consultorio_id: profesional.consultorio_id || "",
         is_active: profesional.is_active,
       });
     } else {
@@ -104,6 +116,7 @@ export default function ProfesionalesPage() {
         phone: "",
         sede_id: sedeSeleccionada?.id || "",
         servicios: [],
+        consultorio_id: "",
         is_active: true,
       });
     }
@@ -159,7 +172,8 @@ export default function ProfesionalesPage() {
         // Actualizar profesional existente
         const updatedProfesional = {
           ...formData,
-          servicios: serviciosNombres
+          servicios: serviciosNombres,
+          consultorio_id: formData.consultorio_id || null
         };
         await updateProfesional(editingProfesional.id, updatedProfesional);
         // Recargar datos desde la BD
@@ -172,7 +186,8 @@ export default function ProfesionalesPage() {
         const nuevoProfesional = {
           id: newId,
           ...formData,
-          servicios: serviciosNombres
+          servicios: serviciosNombres,
+          consultorio_id: formData.consultorio_id || undefined
         };
         await createProfesional(nuevoProfesional);
         // Recargar datos desde la BD
@@ -254,6 +269,7 @@ export default function ProfesionalesPage() {
                     <th className="text-left py-3 px-4 text-sm font-medium text-[#64748b]">Doctor</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-[#64748b]">Contacto</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-[#64748b]">Sede</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-[#64748b]">Consultorio</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-[#64748b]">Servicios</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-[#64748b]">Estado</th>
                     <th className="text-center py-3 px-4 text-sm font-medium text-[#64748b]">Acciones</th>
@@ -276,6 +292,15 @@ export default function ProfesionalesPage() {
                       </td>
                       <td className="py-3 px-4">
                         <span className="text-[#475569]">{getSedeName(profesional.sede_id)}</span>
+                      </td>
+                      <td className="py-3 px-4">
+                        {profesional.consultorio_id ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-indigo-100 text-indigo-700">
+                            {consultorios.find(c => c.id === profesional.consultorio_id)?.name || 'Consultorio asignado'}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-[#94a3b8]">Sin asignar</span>
+                        )}
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex flex-wrap gap-1">
@@ -390,6 +415,48 @@ export default function ProfesionalesPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label htmlFor="consultorio" className="text-sm font-medium">Consultorio</label>
+                <Select 
+                  value={formData.consultorio_id || "none"} 
+                  onValueChange={(value) => setFormData({ ...formData, consultorio_id: value === "none" ? "" : value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar consultorio (opcional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin consultorio asignado</SelectItem>
+                    {consultorios
+                      .filter(c => {
+                        // Filtrar por sede
+                        if (formData.sede_id && c.sede_id !== formData.sede_id) return false;
+                        
+                        // Excluir consultorios ya asignados a otros doctores
+                        const consultorioAsignado = profesionales.find(p => 
+                          p.consultorio_id === c.id && 
+                          p.id !== (editingProfesional?.id || '') &&
+                          p.is_active !== false
+                        );
+                        
+                        return !consultorioAsignado;
+                      })
+                      .map((consultorio) => {
+                        // Verificar si está asignado al doctor actual
+                        const asignadoAEsteDoctor = editingProfesional?.consultorio_id === consultorio.id;
+                        return (
+                          <SelectItem key={consultorio.id} value={consultorio.id}>
+                            {consultorio.name} {asignadoAEsteDoctor ? '(Asignado)' : ''}
+                          </SelectItem>
+                        );
+                      })}
+                  </SelectContent>
+                </Select>
+                {formData.consultorio_id && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Consultorio: {consultorios.find(c => c.id === formData.consultorio_id)?.name}
+                  </p>
+                )}
               </div>
             </div>
             <div>

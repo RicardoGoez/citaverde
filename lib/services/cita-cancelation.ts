@@ -2,7 +2,7 @@
  * Servicio para manejar cancelación de citas con validaciones y notificaciones
  */
 
-import { getCitas, updateCita, getProfesionalById } from '@/lib/actions/database';
+import { getCitas, updateCita, getProfesionalById, updateRecurso } from '@/lib/actions/database';
 import { puedeCancelarCita } from '@/lib/utils/cita-validations';
 import { NotificationService } from './notifications';
 import { getUserById } from '@/lib/auth';
@@ -42,6 +42,29 @@ export async function cancelarCitaConValidaciones(
 
     // Cancelar la cita
     await updateCita(citaId, { estado: 'cancelada' });
+
+    // Liberar el consultorio si estaba asignado
+    if (cita.consultorio_id) {
+      try {
+        // Verificar si hay otras citas activas en el mismo consultorio
+        const todasLasCitas = await getCitas();
+        const citasActivasEnConsultorio = todasLasCitas.filter((c: any) => 
+          c.consultorio_id === cita.consultorio_id &&
+          c.id !== citaId &&
+          c.estado !== 'cancelada' &&
+          c.estado !== 'completada'
+        );
+
+        // Si no hay otras citas activas, marcar el consultorio como disponible
+        if (citasActivasEnConsultorio.length === 0) {
+          await updateRecurso(cita.consultorio_id, { estado: 'disponible' });
+          console.log(`✅ Consultorio ${cita.consultorio_id} liberado (marcado como disponible)`);
+        }
+      } catch (updateError) {
+        console.error('Error liberando consultorio:', updateError);
+        // No fallar la cancelación si falla la actualización del consultorio
+      }
+    }
 
     // Enviar notificaciones (si no se omiten)
     if (!options?.skipNotifications) {

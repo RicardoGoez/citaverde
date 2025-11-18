@@ -86,6 +86,8 @@ export async function createCita(cita: {
   servicio: string;
   profesional_id?: string;
   profesional?: string;
+  consultorio_id?: string;
+  consultorio?: string;
   fecha: string;
   hora: string;
   motivo?: string;
@@ -171,6 +173,43 @@ export async function createCita(cita: {
   if (cita.profesional && cita.profesional.trim() !== '') {
     dataToInsert.profesional = cita.profesional;
   }
+  // Validar consultorio si está asignado
+  if (cita.consultorio_id && cita.consultorio_id.trim() !== '') {
+    // Verificar que el consultorio existe y no está en mantenimiento
+    const { data: consultorioData, error: consultorioError } = await supabase
+      .from('recursos')
+      .select('id, name, estado, tipo')
+      .eq('id', cita.consultorio_id)
+      .single();
+
+    if (consultorioError || !consultorioData) {
+      throw new Error('El consultorio seleccionado no existe');
+    }
+
+    if (consultorioData.estado === 'mantenimiento') {
+      throw new Error('El consultorio está en mantenimiento y no puede ser utilizado');
+    }
+
+    if (consultorioData.tipo !== 'consultorio') {
+      throw new Error('El recurso seleccionado no es un consultorio');
+    }
+
+    // Verificar si el consultorio ya está ocupado en la misma fecha y hora
+    const { data: citasExistentes } = await supabase
+      .from('citas')
+      .select('id, fecha, hora, estado')
+      .eq('consultorio_id', cita.consultorio_id)
+      .eq('fecha', cita.fecha)
+      .eq('hora', cita.hora)
+      .in('estado', ['confirmada', 'en_curso', 'pendiente']);
+
+    if (citasExistentes && citasExistentes.length > 0) {
+      throw new Error(`El consultorio "${consultorioData.name}" ya está ocupado en ${cita.fecha} a las ${cita.hora}`);
+    }
+
+    dataToInsert.consultorio_id = cita.consultorio_id;
+    dataToInsert.consultorio = cita.consultorio || consultorioData.name;
+  }
   if (cita.motivo && cita.motivo.trim() !== '') {
     dataToInsert.motivo = cita.motivo;
   }
@@ -219,6 +258,30 @@ export async function createCita(cita: {
     throw error;
   }
 
+  // Actualizar estado del consultorio a "ocupado" si se asignó
+  if (cita.consultorio_id && cita.consultorio_id.trim() !== '') {
+    try {
+      // Verificar si hay otras citas activas en el mismo consultorio
+      const todasLasCitas = await getCitas();
+      const citasActivasEnConsultorio = todasLasCitas.filter((c: any) => 
+        c.consultorio_id === cita.consultorio_id &&
+        c.id !== data.id &&
+        c.estado !== 'cancelada' &&
+        c.estado !== 'completada'
+      );
+
+      // Solo marcar como ocupado si no hay otras citas activas
+      // (aunque acabamos de crear una, esto es para casos donde se crean múltiples citas)
+      if (citasActivasEnConsultorio.length === 0) {
+        await updateRecurso(cita.consultorio_id, { estado: 'ocupado' });
+        console.log(`✅ Consultorio ${cita.consultorio_id} marcado como ocupado`);
+      }
+    } catch (updateError) {
+      console.error('Error actualizando estado del consultorio:', updateError);
+      // No fallar la creación de la cita si falla la actualización del estado
+    }
+  }
+
   return { ...data, confirmationToken };
 }
 
@@ -226,6 +289,19 @@ export async function createCita(cita: {
  * Actualizar una cita
  */
 export async function updateCita(id: string, updates: Partial<any>) {
+  // Obtener la cita actual para verificar cambios en consultorio
+  const { data: citaActual } = await supabase
+    .from('citas')
+    .select('consultorio_id, fecha, hora, estado')
+    .eq('id', id)
+    .single();
+
+  // Si se está cambiando el consultorio o cancelando/completando la cita
+  const consultorioAnterior = citaActual?.consultorio_id;
+  const nuevoConsultorioId = updates.consultorio_id;
+  const estaCancelando = updates.estado === 'cancelada';
+  const estaCompletando = updates.estado === 'completada';
+
   const { data, error } = await supabase
     .from('citas')
     .update({ ...updates, updated_at: new Date().toISOString() })
@@ -236,6 +312,60 @@ export async function updateCita(id: string, updates: Partial<any>) {
   if (error) {
     console.error('Error actualizando cita:', error);
     throw error;
+  }
+
+  // Manejar cambios en el consultorio
+  if (consultorioAnterior && (estaCancelando || estaCompletando)) {
+    // Liberar el consultorio anterior si se cancela o completa
+    try {
+      const todasLasCitas = await getCitas();
+      const citasActivasEnConsultorio = todasLasCitas.filter((c: any) => 
+        c.consultorio_id === consultorioAnterior &&
+        c.id !== id &&
+        c.estado !== 'cancelada' &&
+        c.estado !== 'completada'
+      );
+
+      if (citasActivasEnConsultorio.length === 0) {
+        await updateRecurso(consultorioAnterior, { estado: 'disponible' });
+        console.log(`✅ Consultorio ${consultorioAnterior} liberado`);
+      }
+    } catch (updateError) {
+      console.error('Error liberando consultorio anterior:', updateError);
+    }
+  }
+
+  if (nuevoConsultorioId && nuevoConsultorioId !== consultorioAnterior) {
+    // Validar y ocupar el nuevo consultorio
+    try {
+      const { data: consultorioData } = await supabase
+        .from('recursos')
+        .select('id, name, estado, tipo')
+        .eq('id', nuevoConsultorioId)
+        .single();
+
+      if (consultorioData && consultorioData.estado !== 'mantenimiento' && consultorioData.tipo === 'consultorio') {
+        // Verificar disponibilidad
+        const fechaParaVerificar = updates.fecha || citaActual?.fecha;
+        const horaParaVerificar = updates.hora || citaActual?.hora;
+        const todasLasCitas = await getCitas();
+        const citasExistentes = todasLasCitas.filter((c: any) => 
+          c.consultorio_id === nuevoConsultorioId &&
+          c.fecha === fechaParaVerificar &&
+          c.hora === horaParaVerificar &&
+          c.id !== id &&
+          c.estado !== 'cancelada' &&
+          c.estado !== 'completada'
+        );
+
+        if (citasExistentes.length === 0) {
+          await updateRecurso(nuevoConsultorioId, { estado: 'ocupado' });
+          console.log(`✅ Consultorio ${nuevoConsultorioId} marcado como ocupado`);
+        }
+      }
+    } catch (updateError) {
+      console.error('Error actualizando estado del nuevo consultorio:', updateError);
+    }
   }
 
   return data;
@@ -744,16 +874,46 @@ export async function createProfesional(profesional: {
   phone?: string;
   sede_id: string;
   servicios: string[];
+  consultorio_id?: string;
   is_active?: boolean;
 }) {
+  // Validar que el consultorio no esté asignado a otro doctor
+  if (profesional.consultorio_id && profesional.consultorio_id.trim() !== '') {
+    const { data: profesionalesExistentes } = await supabase
+      .from('profesionales')
+      .select('id, name, consultorio_id')
+      .eq('consultorio_id', profesional.consultorio_id)
+      .eq('is_active', true);
+
+    if (profesionalesExistentes && profesionalesExistentes.length > 0) {
+      const doctorAsignado = profesionalesExistentes[0];
+      throw new Error(`El consultorio ya está asignado al doctor "${doctorAsignado.name}". Un consultorio solo puede estar asignado a un doctor a la vez.`);
+    }
+  }
+
+  // Preparar datos para insertar, omitiendo campos undefined
+  const dataToInsert: any = {
+    id: profesional.id,
+    name: profesional.name,
+    email: profesional.email,
+    sede_id: profesional.sede_id,
+    servicios: profesional.servicios,
+    is_active: profesional.is_active ?? true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  // Agregar campos opcionales solo si tienen valor
+  if (profesional.phone) {
+    dataToInsert.phone = profesional.phone;
+  }
+  if (profesional.consultorio_id) {
+    dataToInsert.consultorio_id = profesional.consultorio_id;
+  }
+
   const { data, error } = await supabase
     .from('profesionales')
-    .insert({
-      ...profesional,
-      is_active: profesional.is_active ?? true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
+    .insert(dataToInsert)
     .select()
     .single();
 
@@ -774,11 +934,41 @@ export async function updateProfesional(id: string, updates: Partial<{
   phone?: string;
   sede_id: string;
   servicios: string[];
+  consultorio_id?: string | null;
   is_active?: boolean;
 }>) {
+  // Validar que el consultorio no esté asignado a otro doctor (solo si se está asignando un nuevo consultorio)
+  if (updates.consultorio_id !== undefined && updates.consultorio_id !== null && updates.consultorio_id.trim() !== '') {
+    const { data: profesionalesExistentes } = await supabase
+      .from('profesionales')
+      .select('id, name, consultorio_id')
+      .eq('consultorio_id', updates.consultorio_id)
+      .neq('id', id) // Excluir el doctor actual
+      .eq('is_active', true);
+
+    if (profesionalesExistentes && profesionalesExistentes.length > 0) {
+      const doctorAsignado = profesionalesExistentes[0];
+      throw new Error(`El consultorio ya está asignado al doctor "${doctorAsignado.name}". Un consultorio solo puede estar asignado a un doctor a la vez.`);
+    }
+  }
+
+  // Limpiar el objeto: eliminar campos undefined pero mantener null para limpiar consultorio_id
+  const updatesLimpios: any = {
+    updated_at: new Date().toISOString(),
+  };
+
+  // Agregar campos solo si están definidos
+  if (updates.name !== undefined) updatesLimpios.name = updates.name;
+  if (updates.email !== undefined) updatesLimpios.email = updates.email;
+  if (updates.phone !== undefined) updatesLimpios.phone = updates.phone;
+  if (updates.sede_id !== undefined) updatesLimpios.sede_id = updates.sede_id;
+  if (updates.servicios !== undefined) updatesLimpios.servicios = updates.servicios;
+  if (updates.consultorio_id !== undefined) updatesLimpios.consultorio_id = updates.consultorio_id;
+  if (updates.is_active !== undefined) updatesLimpios.is_active = updates.is_active;
+
   const { data, error } = await supabase
     .from('profesionales')
-    .update({ ...updates, updated_at: new Date().toISOString() })
+    .update(updatesLimpios)
     .eq('id', id)
     .select()
     .single();
@@ -1052,17 +1242,45 @@ export async function getRecursos(sedeId?: string) {
 export async function createRecurso(recurso: {
   id: string;
   name: string;
-  tipo: 'consultorio' | 'sala' | 'equipo' | 'vehiculo';
+  tipo: 'consultorio' | 'ventanilla' | 'equipo' | 'otro' | 'sala' | 'vehiculo';
   sede_id: string;
   servicios?: string[];
   is_active?: boolean;
+  estado?: 'disponible' | 'ocupado' | 'mantenimiento';
+  capacidad?: number;
+  descripcion?: string;
+  modelo?: string;
+  marca?: string;
+  numero_serie?: string;
+  ubicacion?: string;
+  numero_ventanilla?: string;
 }) {
+  // Validar que no exista otro recurso con el mismo nombre, tipo y sede
+  const { data: recursosExistentes } = await supabase
+    .from('recursos')
+    .select('id, name, tipo, sede_id')
+    .eq('name', recurso.name.trim())
+    .eq('tipo', recurso.tipo)
+    .eq('sede_id', recurso.sede_id);
+
+  if (recursosExistentes && recursosExistentes.length > 0) {
+    throw new Error(`Ya existe un ${recurso.tipo} con el nombre "${recurso.name}" en esta sede. Los nombres deben ser únicos por tipo y sede.`);
+  }
+
   const { data, error } = await supabase
     .from('recursos')
     .insert({
       ...recurso,
       servicios: recurso.servicios || [],
       is_active: recurso.is_active ?? true,
+      estado: recurso.estado || 'disponible',
+      capacidad: recurso.capacidad || 1,
+      descripcion: recurso.descripcion || '',
+      modelo: recurso.modelo || '',
+      marca: recurso.marca || '',
+      numero_serie: recurso.numero_serie || '',
+      ubicacion: recurso.ubicacion || '',
+      numero_ventanilla: recurso.numero_ventanilla || '',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
@@ -1082,11 +1300,47 @@ export async function createRecurso(recurso: {
  */
 export async function updateRecurso(id: string, updates: Partial<{
   name: string;
-  tipo: 'consultorio' | 'sala' | 'equipo' | 'vehiculo';
+  tipo: 'consultorio' | 'ventanilla' | 'equipo' | 'otro' | 'sala' | 'vehiculo';
   sede_id: string;
   servicios?: string[];
   is_active?: boolean;
+  estado?: 'disponible' | 'ocupado' | 'mantenimiento';
+  capacidad?: number;
+  descripcion?: string;
+  modelo?: string;
+  marca?: string;
+  numero_serie?: string;
+  ubicacion?: string;
+  numero_ventanilla?: string;
 }>) {
+  // Obtener el recurso actual para validar
+  const { data: recursoActual } = await supabase
+    .from('recursos')
+    .select('name, tipo, sede_id')
+    .eq('id', id)
+    .single();
+
+  // Validar que no exista otro recurso con el mismo nombre, tipo y sede (si se está cambiando el nombre o tipo)
+  if (updates.name || updates.tipo || updates.sede_id) {
+    const nombreParaValidar = updates.name || recursoActual?.name;
+    const tipoParaValidar = updates.tipo || recursoActual?.tipo;
+    const sedeParaValidar = updates.sede_id || recursoActual?.sede_id;
+
+    if (nombreParaValidar && tipoParaValidar && sedeParaValidar) {
+      const { data: recursosExistentes } = await supabase
+        .from('recursos')
+        .select('id, name, tipo, sede_id')
+        .eq('name', nombreParaValidar.trim())
+        .eq('tipo', tipoParaValidar)
+        .eq('sede_id', sedeParaValidar)
+        .neq('id', id); // Excluir el recurso actual
+
+      if (recursosExistentes && recursosExistentes.length > 0) {
+        throw new Error(`Ya existe un ${tipoParaValidar} con el nombre "${nombreParaValidar}" en esta sede. Los nombres deben ser únicos por tipo y sede.`);
+      }
+    }
+  }
+
   const { data, error } = await supabase
     .from('recursos')
     .update({ ...updates, updated_at: new Date().toISOString() })

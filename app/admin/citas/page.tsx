@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/table";
 import { Search, Filter, Calendar, CheckCircle2, XCircle, Clock, MoreVertical, Plus, Edit, Trash2, UserCheck, UserX, ArrowLeft, ArrowRight } from "lucide-react";
 import { useState, useEffect } from "react";
-import { getCitas, getUsuarios, getServicios, getProfesionales, getSedes, updateCita, deleteCita, createCita, getHorariosEspeciales, getDisponibilidades } from "@/lib/actions/database";
+import { getCitas, getUsuarios, getServicios, getProfesionales, getSedes, updateCita, deleteCita, createCita, getHorariosEspeciales, getDisponibilidades, getRecursos } from "@/lib/actions/database";
 import { usePermissions } from "@/lib/hooks/use-permissions";
 import { getUserById } from "@/lib/auth";
 import { NotificationService } from "@/lib/services/notifications";
@@ -30,6 +30,7 @@ export default function CitasPage() {
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [servicios, setServicios] = useState<any[]>([]);
   const [profesionales, setProfesionales] = useState<any[]>([]);
+  const [consultorios, setConsultorios] = useState<any[]>([]);
   const [sedes, setSedes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -64,6 +65,7 @@ export default function CitasPage() {
     hora: "",
     estado: "pendiente",
     notas: "",
+    consultorio_id: "",
   });
 
   const [horasOcupadas, setHorasOcupadas] = useState<string[]>([]);
@@ -170,20 +172,28 @@ export default function CitasPage() {
       }
 
       try {
-        const [citasData, usuariosData, serviciosData, profesionalesData, sedesData] = await Promise.all([
+        const [citasData, usuariosData, serviciosData, profesionalesData, sedesData, recursosData] = await Promise.all([
           getCitas(),
           getUsuarios(),
           getServicios(sedeSeleccionada.id),
           getProfesionales(sedeSeleccionada.id),
           getSedes(),
+          getRecursos(sedeSeleccionada.id)
         ]);
         // Filtrar citas por sede
         const citasFiltradas = citasData.filter((cita: any) => cita.sede_id === sedeSeleccionada.id);
+        // Filtrar solo consultorios disponibles (excluir mantenimiento y inactivos)
+        const consultoriosFiltrados = recursosData.filter((r: any) => 
+          r.tipo === 'consultorio' && 
+          r.is_active !== false && 
+          r.estado !== 'mantenimiento'
+        );
         setCitas(citasFiltradas);
         setUsuarios(usuariosData);
         setServicios(serviciosData);
         setProfesionales(profesionalesData);
         setSedes(sedesData);
+        setConsultorios(consultoriosFiltrados);
       } catch (err) {
         console.error("Error cargando citas:", err);
         error("Error", "No se pudieron cargar las citas");
@@ -449,6 +459,7 @@ export default function CitasPage() {
         hora: cita.hora,
         estado: cita.estado,
         notas: cita.notas || cita.motivo || "",
+        consultorio_id: cita.consultorio_id || "",
       });
       if (cita.fecha) {
         setMesActual(new Date(cita.fecha));
@@ -467,6 +478,7 @@ export default function CitasPage() {
         hora: "",
         estado: "pendiente",
         notas: "",
+        consultorio_id: "",
       });
       setMesActual(new Date());
     }
@@ -609,11 +621,14 @@ export default function CitasPage() {
 
       if (isEditing) {
         const profesionalEncontrado = profesionales.find(p => p.id === formData.profesional_id);
+        const consultorioSeleccionado = consultorios.find(c => c.id === formData.consultorio_id);
         
         await updateCita(editingCita.id, {
           user_id: formData.user_id,
           profesional_id: formData.profesional_id || null,
           profesional: profesionalEncontrado?.name || null,
+          consultorio_id: formData.consultorio_id || null,
+          consultorio: consultorioSeleccionado?.name || null,
           servicio_id: formData.servicio_id,
           servicio: servicioEncontrado.name,
           sede_id: sedeSeleccionada.id,
@@ -630,6 +645,20 @@ export default function CitasPage() {
       } else {
         const profesionalEncontrado = profesionales.find(p => p.id === formData.profesional_id);
         
+        // Buscar consultorio del profesional si está asignado
+        let consultorioAsignado = null;
+        if (formData.profesional_id) {
+          const profesional = profesionales.find(p => p.id === formData.profesional_id);
+          if (profesional?.consultorio_id) {
+            consultorioAsignado = consultorios.find(c => c.id === profesional.consultorio_id);
+          }
+        }
+        
+        // Usar consultorio del formulario o el asignado al profesional
+        const consultorioFinal = formData.consultorio_id 
+          ? consultorios.find(c => c.id === formData.consultorio_id)
+          : consultorioAsignado;
+
         const nuevaCita = await createCita({
           user_id: formData.user_id,
           sede_id: sedeSeleccionada.id,
@@ -637,6 +666,8 @@ export default function CitasPage() {
           servicio: servicioEncontrado.name,
           profesional_id: formData.profesional_id || undefined,
           profesional: profesionalEncontrado?.name || undefined,
+          consultorio_id: consultorioFinal?.id || formData.consultorio_id || undefined,
+          consultorio: consultorioFinal?.name || undefined,
           fecha: formData.fecha,
           hora: formData.hora,
           motivo: formData.notas || undefined,
@@ -776,6 +807,7 @@ export default function CitasPage() {
                   <TableHead>Paciente</TableHead>
                   <TableHead>Servicio</TableHead>
                   <TableHead>Profesional</TableHead>
+                  <TableHead>Consultorio</TableHead>
                   <TableHead>Fecha/Hora</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
@@ -788,6 +820,15 @@ export default function CitasPage() {
                     <TableCell>{getUserName(cita.user_id)}</TableCell>
                     <TableCell>{cita.servicio}</TableCell>
                     <TableCell className="text-muted-foreground">{cita.profesional}</TableCell>
+                    <TableCell>
+                      {cita.consultorio ? (
+                        <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
+                          {cita.consultorio}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Sin asignar</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <div className="text-sm">
                         <div className="font-medium">{cita.fecha}</div>
@@ -918,7 +959,19 @@ export default function CitasPage() {
                 <Select
                   value={formData.profesional_id}
                   onValueChange={(value) => {
-                    setFormData({ ...formData, profesional_id: value, fecha: "", hora: "" });
+                    const profesionalSeleccionado = profesionales.find(p => p.id === value);
+                    // Buscar consultorio del doctor si está asignado
+                    let consultorioAsignado = null;
+                    if (profesionalSeleccionado?.consultorio_id) {
+                      consultorioAsignado = consultorios.find(c => c.id === profesionalSeleccionado.consultorio_id);
+                    }
+                    setFormData({ 
+                      ...formData, 
+                      profesional_id: value, 
+                      fecha: "", 
+                      hora: "",
+                      consultorio_id: consultorioAsignado?.id || ""
+                    });
                   }}
                   disabled={!formData.servicio_id}
                 >
@@ -958,6 +1011,30 @@ export default function CitasPage() {
                     <SelectItem value="cancelada">Cancelada</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div>
+                <Label htmlFor="consultorio">Consultorio</Label>
+                <Select 
+                  value={formData.consultorio_id || "none"} 
+                  onValueChange={(value) => setFormData({ ...formData, consultorio_id: value === "none" ? "" : value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={formData.consultorio_id ? "Consultorio asignado" : "Seleccionar consultorio (opcional)"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin consultorio asignado</SelectItem>
+                    {consultorios.map((consultorio) => (
+                      <SelectItem key={consultorio.id} value={consultorio.id}>
+                        {consultorio.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {formData.consultorio_id && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Consultorio: {consultorios.find(c => c.id === formData.consultorio_id)?.name}
+                  </p>
+                )}
               </div>
             </div>
 

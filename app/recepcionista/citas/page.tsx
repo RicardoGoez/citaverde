@@ -20,7 +20,7 @@ import {
   ArrowLeft,
   ArrowRight
 } from "lucide-react";
-import { getCitas, createCita, getServicios, getProfesionales, updateCita, deleteCita, getHorariosEspeciales, getDisponibilidades, getUsuarios } from "@/lib/actions/database";
+import { getCitas, createCita, getServicios, getProfesionales, updateCita, deleteCita, getHorariosEspeciales, getDisponibilidades, getUsuarios, getRecursos } from "@/lib/actions/database";
 import { getUserById } from "@/lib/auth";
 import { NotificationService } from "@/lib/services/notifications";
 import { useState, useEffect } from "react";
@@ -34,6 +34,7 @@ export default function CitasRecepcionista() {
   const [servicios, setServicios] = useState<any[]>([]);
   const [profesionales, setProfesionales] = useState<any[]>([]);
   const [usuarios, setUsuarios] = useState<any[]>([]);
+  const [consultorios, setConsultorios] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -53,6 +54,7 @@ export default function CitasRecepcionista() {
     paciente: "",
     servicio: "",
     profesional: "",
+    consultorio: "",
     fecha: "",
     hora: ""
   });
@@ -81,18 +83,26 @@ export default function CitasRecepcionista() {
       }
 
       try {
-        const [citasData, serviciosData, profesionalesData, usuariosData] = await Promise.all([
+        const [citasData, serviciosData, profesionalesData, usuariosData, recursosData] = await Promise.all([
           getCitas(),
           getServicios(sedeSeleccionada.id),
           getProfesionales(sedeSeleccionada.id),
-          getUsuarios()
+          getUsuarios(),
+          getRecursos(sedeSeleccionada.id)
         ]);
         // Filtrar citas por sede
         const citasFiltradas = citasData.filter((cita: any) => cita.sede_id === sedeSeleccionada.id);
+        // Filtrar solo consultorios disponibles (excluir mantenimiento y inactivos)
+        const consultoriosFiltrados = recursosData.filter((r: any) => 
+          r.tipo === 'consultorio' && 
+          r.is_active !== false && 
+          r.estado !== 'mantenimiento'
+        );
         setCitas(citasFiltradas);
         setServicios(serviciosData);
         setProfesionales(profesionalesData);
         setUsuarios(usuariosData);
+        setConsultorios(consultoriosFiltrados);
       } catch (err) {
         console.error("Error cargando datos:", err);
         error("Error", "Error cargando datos");
@@ -460,6 +470,7 @@ export default function CitasRecepcionista() {
         paciente: cita.paciente_name || cita.user_name || "",
         servicio: cita.servicio_id || "",
         profesional: cita.profesional_id || "",
+        consultorio: cita.consultorio_id || "",
         fecha: cita.fecha || "",
         hora: cita.hora || ""
       });
@@ -476,6 +487,7 @@ export default function CitasRecepcionista() {
         paciente: "",
         servicio: "",
         profesional: "",
+        consultorio: "",
         fecha: "",
         hora: ""
       });
@@ -529,11 +541,14 @@ export default function CitasRecepcionista() {
 
       if (isEditing && editingCita) {
         // Actualizar cita existente
+        const consultorioSeleccionado = consultorios.find(c => c.id === formData.consultorio);
         await updateCita(editingCita.id, {
           servicio_id: formData.servicio,
           servicio: servicioSeleccionado?.name || '',
           profesional_id: formData.profesional || null,
           profesional: profesionalSeleccionado?.name || null,
+          consultorio_id: formData.consultorio || null,
+          consultorio: consultorioSeleccionado?.name || null,
           fecha: formData.fecha,
           hora: formData.hora,
           paciente_name: formData.paciente
@@ -583,6 +598,9 @@ export default function CitasRecepcionista() {
           }
         }
 
+        // Obtener consultorio seleccionado
+        const consultorioSeleccionado = consultorios.find(c => c.id === formData.consultorio);
+        
         // Crear nueva cita (recepcionista puede crear sin límite de citas)
       const nuevaCita = await createCita({
           user_id: userIdParaCita,
@@ -590,6 +608,8 @@ export default function CitasRecepcionista() {
         servicio: servicioSeleccionado?.name || '',
         profesional_id: formData.profesional || '',
         profesional: profesionalSeleccionado?.name || '',
+        consultorio_id: formData.consultorio || undefined,
+        consultorio: consultorioSeleccionado?.name || undefined,
           sede_id: sedeSeleccionada.id,
         fecha: formData.fecha,
           hora: formData.hora,
@@ -635,6 +655,7 @@ export default function CitasRecepcionista() {
         paciente: "",
         servicio: "",
         profesional: "",
+        consultorio: "",
         fecha: "",
         hora: ""
       });
@@ -944,6 +965,7 @@ export default function CitasRecepcionista() {
                   <th className="text-left py-4 px-6 text-xs font-bold text-gray-700 uppercase tracking-wider">Paciente</th>
                   <th className="text-left py-4 px-6 text-xs font-bold text-gray-700 uppercase tracking-wider">Servicio</th>
                   <th className="text-left py-4 px-6 text-xs font-bold text-gray-700 uppercase tracking-wider">Doctor</th>
+                  <th className="text-left py-4 px-6 text-xs font-bold text-gray-700 uppercase tracking-wider">Consultorio</th>
                   <th className="text-left py-4 px-6 text-xs font-bold text-gray-700 uppercase tracking-wider">Fecha</th>
                   <th className="text-left py-4 px-6 text-xs font-bold text-gray-700 uppercase tracking-wider">Hora</th>
                   <th className="text-left py-4 px-6 text-xs font-bold text-gray-700 uppercase tracking-wider">Estado</th>
@@ -977,6 +999,11 @@ export default function CitasRecepcionista() {
                       </td>
                       <td className="py-5 px-6">
                         <span className="text-sm text-gray-900">{cita.profesional || cita.profesional_name || 'Sin asignar'}</span>
+                      </td>
+                      <td className="py-5 px-6">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-700">
+                          {cita.consultorio || cita.consultorio_name || 'Sin asignar'}
+                        </span>
                       </td>
                       <td className="py-5 px-6">
                         <span className="text-sm text-gray-900">
@@ -1192,7 +1219,31 @@ export default function CitasRecepcionista() {
               </div>
               <div>
                 <Label htmlFor="profesional">Doctor</Label>
-                <Select value={formData.profesional} onValueChange={(value) => setFormData({ ...formData, profesional: value })}>
+                <Select value={formData.profesional} onValueChange={(value) => {
+                  const profesionalSeleccionado = profesionales.find(p => p.id === value);
+                  // Buscar consultorio del doctor (por consultorio_id si existe, o por servicios)
+                  let consultorioAsignado = null;
+                  
+                  if (profesionalSeleccionado) {
+                    // Si el profesional tiene consultorio_id asignado
+                    if (profesionalSeleccionado.consultorio_id) {
+                      consultorioAsignado = consultorios.find(c => c.id === profesionalSeleccionado.consultorio_id);
+                    } else {
+                      // Buscar consultorio compatible con los servicios del doctor
+                      const serviciosProfesional = profesionalSeleccionado.servicios || [];
+                      consultorioAsignado = consultorios.find(c => {
+                        const serviciosConsultorio = c.servicios || [];
+                        return serviciosProfesional.some(serv => serviciosConsultorio.includes(serv));
+                      });
+                    }
+                  }
+                  
+                  setFormData({ 
+                    ...formData, 
+                    profesional: value,
+                    consultorio: consultorioAsignado?.id || ""
+                  });
+                }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccionar doctor" />
                   </SelectTrigger>
@@ -1208,6 +1259,26 @@ export default function CitasRecepcionista() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div>
+                <Label htmlFor="consultorio">Consultorio</Label>
+                <Select value={formData.consultorio} onValueChange={(value) => setFormData({ ...formData, consultorio: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={formData.consultorio ? "Consultorio asignado" : "Seleccionar consultorio (opcional)"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {consultorios.map((consultorio) => (
+                      <SelectItem key={consultorio.id} value={consultorio.id}>
+                        {consultorio.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {formData.consultorio && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Consultorio: {consultorios.find(c => c.id === formData.consultorio)?.name || 'No asignado'}
+                  </p>
+                )}
               </div>
               </div>
             
@@ -1368,6 +1439,7 @@ export default function CitasRecepcionista() {
                 paciente: "",
                 servicio: "",
                 profesional: "",
+                consultorio: "",
                 fecha: "",
                 hora: ""
               });

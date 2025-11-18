@@ -1502,20 +1502,60 @@ export async function createDisponibilidad(disponibilidad: {
   motivo?: string;
   recurrente?: boolean;
 }) {
+  // Limpiar el objeto: eliminar campos undefined y null, y campos que no existen en la tabla
+  const datosLimpios: any = {
+    profesional_id: disponibilidad.profesional_id,
+    tipo: disponibilidad.tipo,
+    recurrente: disponibilidad.recurrente ?? false,
+  };
+
+  // Agregar sede_id si está presente
+  if (disponibilidad.sede_id) {
+    datosLimpios.sede_id = disponibilidad.sede_id;
+  }
+
+  // Agregar campos opcionales solo si tienen valor
+  if (disponibilidad.dia_semana !== undefined && disponibilidad.dia_semana !== null) {
+    datosLimpios.dia_semana = disponibilidad.dia_semana;
+  }
+  if (disponibilidad.fecha_inicio) {
+    datosLimpios.fecha_inicio = disponibilidad.fecha_inicio;
+  }
+  if (disponibilidad.fecha_fin) {
+    datosLimpios.fecha_fin = disponibilidad.fecha_fin;
+  }
+  if (disponibilidad.hora_inicio) {
+    datosLimpios.hora_inicio = disponibilidad.hora_inicio;
+  }
+  if (disponibilidad.hora_fin) {
+    datosLimpios.hora_fin = disponibilidad.hora_fin;
+  }
+  if (disponibilidad.motivo) {
+    datosLimpios.motivo = disponibilidad.motivo;
+  }
+
+  // Agregar timestamps
+  datosLimpios.created_at = new Date().toISOString();
+  datosLimpios.updated_at = new Date().toISOString();
+
   const { data, error } = await supabase
     .from('disponibilidad')
-    .insert({
-      ...disponibilidad,
-      recurrente: disponibilidad.recurrente ?? false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
+    .insert(datosLimpios)
     .select()
     .single();
 
   if (error) {
-    console.error('Error creando disponibilidad:', error);
-    throw error;
+    console.error('Error creando disponibilidad:', {
+      error,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+      datosEnviados: datosLimpios
+    });
+    // Crear un error más descriptivo
+    const errorMessage = error.message || error.details || error.hint || 'Error desconocido al crear disponibilidad';
+    throw new Error(errorMessage);
   }
 
   return data;

@@ -128,10 +128,20 @@ export default function DisponibilidadPage() {
 
     try {
       if (editingItem) {
-        await updateDisponibilidad(editingItem.id, formData);
+        // Limpiar datos antes de actualizar (eliminar campos que no van a la BD)
+        const { profesional, id, ...datosParaActualizar } = formData;
+        await updateDisponibilidad(editingItem.id, datosParaActualizar);
         showSuccess("Éxito", "Disponibilidad actualizada");
       } else {
-        await createDisponibilidad(formData as any);
+        // Limpiar datos antes de crear (eliminar campos que no van a la BD)
+        const { profesional, id, ...datosParaCrear } = formData;
+        
+        // Agregar sede_id si no está presente
+        if (!datosParaCrear.sede_id && sedeSeleccionada) {
+          datosParaCrear.sede_id = sedeSeleccionada.id;
+        }
+        
+        await createDisponibilidad(datosParaCrear as any);
         showSuccess("Éxito", "Disponibilidad creada");
       }
       
@@ -139,9 +149,11 @@ export default function DisponibilidadPage() {
       setEditingItem(null);
       setFormData({ tipo: "jornada", recurrente: false });
       await cargarDisponibilidades();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error guardando disponibilidad:", error);
-      showError("Error", "Error al guardar");
+      // Mostrar el mensaje de error real de Supabase
+      const mensajeError = error?.message || error?.details || error?.hint || "Error al guardar la disponibilidad";
+      showError("Error", mensajeError);
     }
   };
 

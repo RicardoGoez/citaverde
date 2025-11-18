@@ -14,6 +14,7 @@ import {
   MapPin,
   Star,
   RefreshCw,
+  Building2,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getCitas, updateCita, getProfesionales, getSedes, regenerateQRCita } from "@/lib/actions/database";
@@ -58,6 +59,13 @@ export default function MisCitasPage() {
         if (userStr) {
           const userData = JSON.parse(userStr);
           const citasData = await getCitas({ userId: userData.id });
+          // Debug: verificar si las citas tienen consultorio
+          console.log('📋 Citas cargadas:', citasData.map((c: any) => ({
+            id: c.id,
+            servicio: c.servicio,
+            consultorio_id: c.consultorio_id,
+            consultorio: c.consultorio
+          })));
           setCitas(citasData);
           setFilteredCitas(citasData);
         }
@@ -284,8 +292,14 @@ export default function MisCitasPage() {
                             </div>
                             <div className="flex items-center gap-2 text-sm text-gray-600">
                               <MapPin className="h-4 w-4" />
-                              {cita.profesional}
+                              {cita.profesional || 'Sin doctor asignado'}
                             </div>
+                            {cita.consultorio && (
+                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                                <Building2 className="h-4 w-4" />
+                                {cita.consultorio}
+                              </div>
+                            )}
                           </div>
                         </div>
                         {getEstadoBadge(cita.estado)}
@@ -365,8 +379,14 @@ export default function MisCitasPage() {
                               {formatearFechaLocal(cita.fecha)} a las {cita.hora}
                             </p>
                             <p className="text-sm text-gray-600">
-                              {cita.profesional}
+                              {cita.profesional || 'Sin doctor asignado'}
                             </p>
+                            {cita.consultorio && (
+                              <p className="text-sm text-gray-600">
+                                <Building2 className="h-3 w-3 inline mr-1" />
+                                {cita.consultorio}
+                              </p>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-3">

@@ -11,7 +11,8 @@ import {
   MapPin,
   User,
   Plus,
-  ScanLine
+  ScanLine,
+  Building2
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
@@ -241,6 +242,12 @@ export default function UsuarioDashboard() {
                             <MapPin className="h-4 w-4" />
                             CitaVerde {proximaCita.sede || 'Centro'}
                           </div>
+                          {proximaCita.consultorio && (
+                            <div className="flex items-center gap-2">
+                              <Building2 className="h-4 w-4" />
+                              {proximaCita.consultorio}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

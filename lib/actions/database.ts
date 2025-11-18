@@ -173,42 +173,64 @@ export async function createCita(cita: {
   if (cita.profesional && cita.profesional.trim() !== '') {
     dataToInsert.profesional = cita.profesional;
   }
-  // Validar consultorio si está asignado
-  if (cita.consultorio_id && cita.consultorio_id.trim() !== '') {
+  // Buscar consultorio del profesional si no se proporcionó uno explícitamente
+  let consultorioIdFinal = cita.consultorio_id;
+  let consultorioNombreFinal = cita.consultorio;
+  
+  // Si no hay consultorio_id pero hay profesional_id, buscar el consultorio del profesional
+  if ((!consultorioIdFinal || consultorioIdFinal.trim() === '') && cita.profesional_id && cita.profesional_id.trim() !== '') {
+    const { data: profesionalData } = await supabase
+      .from('profesionales')
+      .select('id, name, consultorio_id')
+      .eq('id', cita.profesional_id)
+      .single();
+    
+    if (profesionalData?.consultorio_id) {
+      consultorioIdFinal = profesionalData.consultorio_id;
+      console.log(`🔍 Consultorio encontrado del profesional ${profesionalData.name}: ${consultorioIdFinal}`);
+    }
+  }
+
+  // Validar y asignar consultorio si está disponible
+  if (consultorioIdFinal && consultorioIdFinal.trim() !== '') {
     // Verificar que el consultorio existe y no está en mantenimiento
     const { data: consultorioData, error: consultorioError } = await supabase
       .from('recursos')
       .select('id, name, estado, tipo')
-      .eq('id', cita.consultorio_id)
+      .eq('id', consultorioIdFinal)
       .single();
 
     if (consultorioError || !consultorioData) {
-      throw new Error('El consultorio seleccionado no existe');
+      console.warn(`⚠️ Consultorio ${consultorioIdFinal} no encontrado, continuando sin consultorio`);
+      // No fallar la creación si el consultorio no existe, solo continuar sin él
+    } else {
+      if (consultorioData.estado === 'mantenimiento') {
+        throw new Error('El consultorio está en mantenimiento y no puede ser utilizado');
+      }
+
+      if (consultorioData.tipo !== 'consultorio') {
+        throw new Error('El recurso seleccionado no es un consultorio');
+      }
+
+      // Verificar si el consultorio ya está ocupado en la misma fecha y hora
+      const { data: citasExistentes } = await supabase
+        .from('citas')
+        .select('id, fecha, hora, estado')
+        .eq('consultorio_id', consultorioIdFinal)
+        .eq('fecha', cita.fecha)
+        .eq('hora', cita.hora)
+        .in('estado', ['confirmada', 'en_curso', 'pendiente']);
+
+      if (citasExistentes && citasExistentes.length > 0) {
+        throw new Error(`El consultorio "${consultorioData.name}" ya está ocupado en ${cita.fecha} a las ${cita.hora}`);
+      }
+
+      dataToInsert.consultorio_id = consultorioIdFinal;
+      dataToInsert.consultorio = consultorioNombreFinal || consultorioData.name;
+      console.log(`✅ Consultorio asignado a la cita: ${consultorioData.name} (${consultorioIdFinal})`);
     }
-
-    if (consultorioData.estado === 'mantenimiento') {
-      throw new Error('El consultorio está en mantenimiento y no puede ser utilizado');
-    }
-
-    if (consultorioData.tipo !== 'consultorio') {
-      throw new Error('El recurso seleccionado no es un consultorio');
-    }
-
-    // Verificar si el consultorio ya está ocupado en la misma fecha y hora
-    const { data: citasExistentes } = await supabase
-      .from('citas')
-      .select('id, fecha, hora, estado')
-      .eq('consultorio_id', cita.consultorio_id)
-      .eq('fecha', cita.fecha)
-      .eq('hora', cita.hora)
-      .in('estado', ['confirmada', 'en_curso', 'pendiente']);
-
-    if (citasExistentes && citasExistentes.length > 0) {
-      throw new Error(`El consultorio "${consultorioData.name}" ya está ocupado en ${cita.fecha} a las ${cita.hora}`);
-    }
-
-    dataToInsert.consultorio_id = cita.consultorio_id;
-    dataToInsert.consultorio = cita.consultorio || consultorioData.name;
+  } else {
+    console.log('ℹ️ No se asignó consultorio a la cita (no hay consultorio_id ni profesional con consultorio)');
   }
   if (cita.motivo && cita.motivo.trim() !== '') {
     dataToInsert.motivo = cita.motivo;

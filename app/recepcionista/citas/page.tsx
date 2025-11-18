@@ -599,7 +599,22 @@ export default function CitasRecepcionista() {
         }
 
         // Obtener consultorio seleccionado
-        const consultorioSeleccionado = consultorios.find(c => c.id === formData.consultorio);
+        let consultorioSeleccionado = null;
+        if (formData.consultorio) {
+          consultorioSeleccionado = consultorios.find(c => c.id === formData.consultorio);
+        } else if (formData.profesional) {
+          // Si no hay consultorio seleccionado pero hay profesional, buscar su consultorio asignado
+          const profesionalConConsultorio = profesionales.find(p => p.id === formData.profesional);
+          if (profesionalConConsultorio?.consultorio_id) {
+            consultorioSeleccionado = consultorios.find(c => c.id === profesionalConConsultorio.consultorio_id);
+          }
+        }
+        
+        console.log('🏥 Consultorio para la cita:', {
+          consultorio_id: consultorioSeleccionado?.id,
+          consultorio_name: consultorioSeleccionado?.name,
+          formData_consultorio: formData.consultorio
+        });
         
         // Crear nueva cita (recepcionista puede crear sin límite de citas)
       const nuevaCita = await createCita({
@@ -608,7 +623,7 @@ export default function CitasRecepcionista() {
         servicio: servicioSeleccionado?.name || '',
         profesional_id: formData.profesional || '',
         profesional: profesionalSeleccionado?.name || '',
-        consultorio_id: formData.consultorio || undefined,
+        consultorio_id: consultorioSeleccionado?.id || formData.consultorio || undefined,
         consultorio: consultorioSeleccionado?.name || undefined,
           sede_id: sedeSeleccionada.id,
         fecha: formData.fecha,
@@ -616,38 +631,45 @@ export default function CitasRecepcionista() {
           paciente_name: formData.paciente, // Guardar el nombre del paciente
           skipLimitValidation: true // Recepcionista puede crear citas sin límite
       });
+      
+      console.log('✅ Cita creada:', {
+        id: nuevaCita.id,
+        consultorio_id: nuevaCita.consultorio_id,
+        consultorio: nuevaCita.consultorio
+      });
 
-        // Enviar email de confirmación con recordatorio (si el usuario tiene email)
-        if (emailPaciente) {
-      try {
-        await NotificationService.notifyCitaConfirmada(
-              userIdParaCita,
-          {
-            servicio: servicioSeleccionado?.name || '',
-            fecha: formData.fecha,
-            hora: formData.hora,
-            profesional: profesionalSeleccionado?.name || '',
-            id: nuevaCita.id,
-            confirmationToken: nuevaCita.confirmationToken,
-            qr_code: nuevaCita.qr_code
-          },
-              emailPaciente
-        );
-            console.log(`✅ Email de confirmación enviado a ${emailPaciente}`);
-      } catch (emailError) {
-        console.error("Error enviando email:", emailError);
-        // No fallar la creación de cita si el email falla
-          }
-        } else {
-          console.warn(`⚠️ No se pudo enviar email: Usuario "${formData.paciente}" no tiene email registrado`);
-      }
-
-      // Recargar citas
-      const citasData = await getCitas();
+        // Recargar citas primero (sin esperar el email)
+        const citasData = await getCitas();
         const citasFiltradas = citasData.filter((cita: any) => cita.sede_id === sedeSeleccionada.id);
         setCitas(citasFiltradas);
 
-      success("Éxito", emailPaciente ? "Cita creada correctamente y se ha enviado el recordatorio por correo" : "Cita creada correctamente (no se pudo enviar correo: usuario no encontrado o sin email)");
+        // Mostrar éxito inmediatamente
+        success("Éxito", "Cita creada correctamente");
+
+        // Enviar email de confirmación de forma asíncrona (no bloquear la respuesta)
+        if (emailPaciente) {
+          // Enviar email en segundo plano sin bloquear
+          NotificationService.notifyCitaConfirmada(
+            userIdParaCita,
+            {
+              servicio: servicioSeleccionado?.name || '',
+              fecha: formData.fecha,
+              hora: formData.hora,
+              profesional: profesionalSeleccionado?.name || '',
+              id: nuevaCita.id,
+              confirmationToken: nuevaCita.confirmationToken,
+              qr_code: nuevaCita.qr_code
+            },
+            emailPaciente
+          ).then(() => {
+            console.log(`✅ Email de confirmación enviado a ${emailPaciente}`);
+          }).catch((emailError) => {
+            console.error("Error enviando email:", emailError);
+            // No mostrar error al usuario, solo log
+          });
+        } else {
+          console.warn(`⚠️ No se pudo enviar email: Usuario "${formData.paciente}" no tiene email registrado`);
+        }
       }
       
       setIsDialogOpen(false);

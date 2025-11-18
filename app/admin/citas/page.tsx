@@ -707,9 +707,19 @@ export default function CitasPage() {
         success("Creada", "Cita creada exitosamente y se ha enviado el recordatorio por correo");
       }
       setIsDialogOpen(false);
-    } catch (err) {
-      console.error("Error guardando cita:", err);
-      error("Error", "No se pudo guardar la cita");
+    } catch (err: any) {
+      // Si es un error de límite de citas, solo mostrar el toast sin loguear en consola
+      const esErrorLimiteCitas = err?.message && (
+        err.message.includes('citas activas') || 
+        err.message.includes('límite') ||
+        err.message.includes('máximo de citas')
+      );
+      
+      if (!esErrorLimiteCitas) {
+        console.error("Error guardando cita:", err);
+      }
+      
+      error("Error", err?.message || "No se pudo guardar la cita");
     }
   };
 

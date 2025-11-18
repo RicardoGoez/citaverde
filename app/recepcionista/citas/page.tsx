@@ -684,7 +684,17 @@ export default function CitasRecepcionista() {
       setUsuarioSeleccionado("");
       setModoPaciente('manual');
     } catch (err: any) {
-      console.error("Error creando cita:", err);
+      // Si es un error de límite de citas, solo mostrar el toast sin loguear en consola
+      const esErrorLimiteCitas = err.message && (
+        err.message.includes('citas activas') || 
+        err.message.includes('límite') ||
+        err.message.includes('máximo de citas')
+      );
+      
+      if (!esErrorLimiteCitas) {
+        console.error("Error creando cita:", err);
+      }
+      
       error("Error", err.message || "No se pudo crear la cita");
     }
   };

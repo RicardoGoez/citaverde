@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { Resend } from "resend";
+import sendpulse from "sendpulse-api";
 import { generateQRCode } from "@/lib/utils/qr";
 import {
   getCitaConfirmadaTemplate,
@@ -8,9 +9,43 @@ import {
   getTurnoObtenidoTemplate,
   getVerificacionEmailTemplate
 } from "@/lib/templates/email-template";
+import { promises as fs } from "fs";
+import path from "path";
+import os from "os";
 
-// Inicializar Resend si hay API key
+// Inicializar SendPulse si hay credenciales
+const sendpulseConfigured = process.env.SENDPULSE_API_USER_ID && process.env.SENDPULSE_API_SECRET;
+
+// Inicializar Resend si hay API key (fallback)
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+
+// Función para inicializar SendPulse
+function initSendPulse(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (!sendpulseConfigured) {
+      reject(new Error("SendPulse no está configurado"));
+      return;
+    }
+
+    // Usar directorio temporal del sistema
+    const tokenStorage = path.join(os.tmpdir(), 'sendpulse-tokens');
+    
+    // Crear directorio si no existe
+    fs.mkdir(tokenStorage, { recursive: true }).catch(() => {
+      // Ignorar error si ya existe
+    });
+
+    sendpulse.init(
+      process.env.SENDPULSE_API_USER_ID!,
+      process.env.SENDPULSE_API_SECRET!,
+      tokenStorage,
+      () => {
+        console.log("✅ SendPulse inicializado correctamente");
+        resolve();
+      }
+    );
+  });
+}
 
 // Configuración del transporter SMTP para desarrollo y producción
 async function createTransporter() {
@@ -112,7 +147,72 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Intentar enviar con Resend primero (más confiable)
+    // Intentar enviar con SendPulse primero (método principal)
+    if (sendpulseConfigured) {
+      try {
+        await initSendPulse();
+        
+        const fromEmail = process.env.EMAIL_FROM || process.env.SENDPULSE_FROM_EMAIL || "noreply@citaverde.com";
+        const fromName = process.env.EMAIL_FROM_NAME || "Citaverde";
+        
+        // Extraer nombre del destinatario si está en formato "Nombre <email>"
+        let recipientName = to;
+        let recipientEmail = to;
+        if (to.includes('<') && to.includes('>')) {
+          const match = to.match(/(.+?)\s*<(.+?)>/);
+          if (match) {
+            recipientName = match[1].trim();
+            recipientEmail = match[2].trim();
+          }
+        }
+        
+        const emailData = {
+          html: htmlContent,
+          text: message,
+          subject: subject,
+          from: {
+            name: fromName,
+            email: fromEmail
+          },
+          to: [
+            {
+              name: recipientName,
+              email: recipientEmail
+            }
+          ]
+        };
+
+        // Convertir callback de SendPulse a Promise
+        const sendPulseResult = await new Promise<any>((resolve, reject) => {
+          sendpulse.smtpSendMail((result: any) => {
+            if (result && result.result === true) {
+              resolve(result);
+            } else {
+              reject(new Error(result?.message || "Error desconocido de SendPulse"));
+            }
+          }, emailData);
+        });
+
+        console.log("✅ Email enviado exitosamente con SendPulse");
+        console.log("   A:", recipientEmail);
+        console.log("   Asunto:", subject);
+        
+        return NextResponse.json(
+          { 
+            success: true, 
+            message: "Email enviado exitosamente",
+            method: "sendpulse",
+            emailId: sendPulseResult.id
+          },
+          { status: 200 }
+        );
+      } catch (sendpulseError: any) {
+        console.error("Error con SendPulse, intentando Resend:", sendpulseError);
+        // Continuar con Resend como fallback
+      }
+    }
+
+    // Fallback a Resend si SendPulse no está disponible o falló
     if (resend) {
       try {
         const fromEmail = process.env.EMAIL_FROM || process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
